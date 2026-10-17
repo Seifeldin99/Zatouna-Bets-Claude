@@ -114,10 +114,13 @@ Photos are fetched through **signed URLs**: links that work for a short time onl
 - App store release. Android test builds come first, iPhone later (plan step 8).
 - Analytics beyond basic error reports; multiple languages.
 
-## Open questions for you
+## Decided
 
-1. **AI cost:** each check-in costs a fraction of a cent to check. Is a small monthly cap (for example $10) fine during testing?
-2. **Photo retention:** keep photos for 90 days after a challenge ends, then delete them? Shorter is better for privacy.
-3. **Support:** only you during testing, or should someone else also handle referee cases?
-4. **Supabase region:** I'll use US East, the closest to the first markets (US and Canada). Are most of your testers somewhere else?
-5. **Account deletion:** when someone deletes their account, keep their ledger history under "deleted user" so other people's totals still add up? This is my recommendation.
+- **AI spending:** capped at about $10 a month during testing.
+- **Photo retention:** photos are deleted 90 days after a challenge ends.
+- **Support:** only the owner handles referee cases during testing.
+- **Account deletion:** a deleted user's token history stays, labelled "deleted user", so everyone else's totals still add up.
+- **Server region:** chosen in plan step 4, when the Supabase project is created. The default is US East, the closest to the first markets (US and Canada). Canada (Central) is the alternative if Canadian data has to stay in Canada. A project can't be moved later; moving means creating a new project and copying the data, which is cheap while there are only testers. Real-money rules may set where data must live, so the lawyer should confirm this.
+
+## Open questions for you
+None right now.
