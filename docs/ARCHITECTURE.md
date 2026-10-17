@@ -30,7 +30,7 @@ A **table** is like a spreadsheet tab; each row is one record.
 | `challenges` | a challenge | creator, title, rule, schedule, start date, length, stake, misses allowed, **app fee %** (copied in at creation), **status** |
 | `challenge_members` | one person in one challenge | challenge, user, joined at, **time zone** (fixed at joining), **result** (in progress / finished / forfeited) |
 | `invites` | an invite code | challenge, code, expires at |
-| `check_ins` | one photo and note (a retry is a new row) | member, the day it counts for, attempt number (1 to 3), photo path, note, **state** (pending / accepted / rejected) |
+| `check_ins` | one photo and note (a retry is a new row) | member, the day it counts for, attempt number, photo path, note, **state** (pending / accepted / rejected) |
 | `ai_checks` | the AI's verdict on a check-in | check-in, label, one-line reason, model name, time taken |
 | `referee_cases` | a request for support to overrule the AI | check-in, who asked, explanation, support's decision, reason, decided by |
 | `push_tokens` | a phone's notification address | user, token |
@@ -83,7 +83,9 @@ Step 5 of the plan builds this first, with automated tests, including "settling 
 3. The function sends the photo, the note and the challenge's rule to a vision AI model and asks for one of three labels with a one-line reason.
 4. It saves the result in `ai_checks`. *Likely okay* sets the check-in to *accepted*. *Likely not okay* and *unsure* set it to *rejected*. The AI label is still stored, so we can see how often it was unsure.
 5. If the model errors or takes longer than 30 seconds, the result counts as *unsure*. The AI's API key lives only on the server.
-6. On a rejected check-in, the member can **retry** (a new check-in row, at most 3 a day, before their midnight) or open a **referee case** (within 24 hours). Support's decision overwrites the state and is recorded with who decided and why.
+6. On a rejected check-in, the member can **retry** (a new check-in row, as many as they like before their midnight) or open a **referee case** (within 24 hours). Support's decision overwrites the state and is recorded with who decided and why.
+
+Each retry is a new AI check, which costs a little and gives a cheater another try at fooling the AI. The attempt number is stored, so support can see it on a referee case, and after testing we'll check whether a daily limit is needed.
 
 The model's name is saved with every verdict so we can compare models later (plan step 7: a labelled test set of 50 to 100 photos). Which model and provider to use is decided in that step.
 
@@ -95,7 +97,7 @@ Supabase uses **Row Level Security (RLS)**: rules stored in the database that de
 |---|---|---|
 | Your profile | you, and members of your challenges (name only) | you |
 | A challenge | its members, and anyone holding a valid invite (details only) | its creator, before it opens |
-| Check-ins and photos | members of that challenge | the author creates; nobody edits after |
+| Check-ins and photos | the author always; other members only once it's accepted, or once that day is over and missed | the author creates; nobody edits after |
 | Referee cases | the check-in's author, and support | the author opens one; support decides |
 | Token gifts | the receiver, and the admin | the admin only (through a server function) |
 | Ledger | you see your own wallet and your challenges' pools | server functions only |
@@ -117,5 +119,5 @@ Photos are fetched through **signed URLs**: links that work for a short time onl
 1. **AI cost:** each check-in costs a fraction of a cent to check. Is a small monthly cap (for example $10) fine during testing?
 2. **Photo retention:** keep photos for 90 days after a challenge ends, then delete them? Shorter is better for privacy.
 3. **Support:** only you during testing, or should someone else also handle referee cases?
-4. **Supabase region:** I'll pick the one closest to you and your testers. Where are most of them?
+4. **Supabase region:** I'll use US East, the closest to the first markets (US and Canada). Are most of your testers somewhere else?
 5. **Account deletion:** when someone deletes their account, keep their ledger history under "deleted user" so other people's totals still add up? This is my recommendation.

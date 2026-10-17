@@ -42,7 +42,7 @@ Zatouna lets you "bet on yourself": join a private challenge with friends, stake
 
 ### 3. Friends for each challenge
 - **3.1** As a creator, I want to invite friends with a link or a short code. *Done when:* the link opens the challenge in the app, and a challenge holds at most **10 members**.
-- **3.2** As a member, I want to see who's in, their check-ins and AI verdicts, and who's on track. *Done when:* nobody outside the challenge can see anything about it.
+- **3.2** As a member, I want to see who's in and who's on track. *Done when:* friends see my check-in only once it's **accepted**, or once my day is over and **missed**. My rejected attempts, retries and referee cases stay private while my day is still open. Nobody outside the challenge can see anything about it.
 - **3.3** Invitees can only join **before** the start date.
 
 ### 4. Staking and forfeiting
@@ -56,10 +56,10 @@ Zatouna lets you "bet on yourself": join a private challenge with friends, stake
 
 ### 6. AI check
 - **6.1** As a member, I want each check-in judged within about a minute, with a one-line reason. *Likely okay* means **accepted**. *Likely not okay* and *unsure* both mean **rejected**, and so does an AI that fails or is too slow.
-- **6.2** As a member whose check-in was rejected, I want two buttons: **Retry** (take a new photo and note) and **Referee**. *Done when:* both appear on every rejected check-in. I can retry up to **3 times** a day, until my midnight. The day counts as soon as one check-in is accepted.
+- **6.2** As a member whose check-in was rejected, I want two buttons: **Retry** (take a new photo and note) and **Referee**. *Done when:* both appear on every rejected check-in. I can retry **as many times as I like** until my midnight. The day counts as soon as one check-in is accepted.
 
 ### 7. Referee (customer support)
-- **7.1** As a member whose check-in was rejected, I want to call the referee with a short explanation. *Done when:* the request reaches the support queue with the photo, note, rule and AI reason. I can do this once per check-in, within 24 hours of the verdict, even after my midnight has passed. While the case is open, the day shows as **waiting for referee**, not as missed.
+- **7.1** As a member whose check-in was rejected, I want to call the referee on **my own** check-in with a short explanation. *Done when:* the request reaches the support queue with the photo, note, rule and AI reason. I can do this once per check-in, within 24 hours of the verdict, even after my midnight has passed. While the case is open, the day shows as **waiting for referee**, not as missed.
 - **7.2** As support (the admin, during testing), I want a queue of referee cases where I can accept or reject each one with a reason. *Done when:* the member sees the result and the reason, and the decision is final.
 - **7.3** Every case is decided before settlement. Anything support hasn't decided by **48 hours after the challenge ends** counts as accepted. The app profits when stakes are lost, so ties go to the member.
 
@@ -76,15 +76,10 @@ Zatouna lets you "bet on yourself": join a private challenge with friends, stake
 - **9.1** As a member, I want a notification at a time I choose on days I still owe a check-in, plus a "last chance" one two hours before my midnight. *Done when:* none is sent once I've checked in, and I can turn them off per challenge.
 
 ## Later: real money (not in the MVP)
-The goal is that testers will eventually buy tokens with real money, and the free admin gifts will stop. The data design leaves room for purchases and the app fee, so the code won't need rewriting. **This must not be built before a lawyer signs off.** A stake that can be lost, plus a house cut of the losses, is the textbook shape of gambling. Apple only allows real-money gaming from licensed operators, in the places they're licensed. Apple also says purchased credits may not expire, which conflicts with losing bought tokens. Google Play has similar rules. The answer can differ by country.
+The goal is that testers will eventually buy tokens with real money, and the free admin gifts will stop. The data design leaves room for purchases and the app fee, so the code won't need rewriting. **This must not be built before a lawyer signs off.** A stake that can be lost, plus a house cut of the losses, is the textbook shape of gambling. Apple only allows real-money gaming from licensed operators, in the places they're licensed. Apple also says purchased credits may not expire, which conflicts with losing bought tokens. Google Play has similar rules. The first markets are the **US and Canada**. Both regulate this by state or province, so the lawyer has to check each one.
 
 ## Also not in the MVP
 Buying, cashing out or transferring tokens, public challenges, leaderboards, chat, video or gallery uploads, non-email logins, and web or desktop versions.
 
 ## Open questions for you
-1. **App fee:** is 10% of forfeited stakes right?
-2. **Retries:** 3 a day is my default. More, fewer, or unlimited?
-3. **Friends contesting:** can a member call the referee on a *friend's* accepted check-in, e.g. a photo they know was staged? My default is no, only on your own.
-4. **Stake size:** the creator picks any amount from 10 to 500. Should it be fixed instead?
-5. **Grace period:** none for late check-ins. Should there be one or two hours?
-6. **Countries:** which countries do you hope to launch in with real money? The lawyer will need this first.
+None right now. Your answers so far are written into the stories above. We'll revisit stake size, retries and the grace period after testing.
