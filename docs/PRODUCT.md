@@ -55,11 +55,11 @@ Zatouna lets you "bet on yourself": join a private challenge with friends, stake
 - **5.2** Each member's day runs on **their own time zone**, so the habit fits their routine. Your time zone is fixed when you join, so changing your phone's clock can't buy extra hours. A check-in after midnight your time doesn't count for that day.
 
 ### 6. AI check
-- **6.1** As a member, I want each check-in judged within about a minute, with a one-line reason. *Likely okay* means **accepted**, and *likely not okay* means **rejected**.
-- **6.2** *Unsure*, or an AI that fails or is too slow, sends the check-in **straight to the referee**. It counts as **pending** meanwhile, not as missed.
+- **6.1** As a member, I want each check-in judged within about a minute, with a one-line reason. *Likely okay* means **accepted**. *Likely not okay* and *unsure* both mean **rejected**, and so does an AI that fails or is too slow.
+- **6.2** As a member whose check-in was rejected, I want two buttons: **Retry** (take a new photo and note) and **Referee**. *Done when:* both appear on every rejected check-in. I can retry up to **3 times** a day, until my midnight. The day counts as soon as one check-in is accepted.
 
 ### 7. Referee (customer support)
-- **7.1** As a member whose check-in was rejected, I want to call the referee with a short explanation. *Done when:* the request reaches the support queue with the photo, note, rule and AI reason, and I can do this once per check-in, within 24 hours of the verdict.
+- **7.1** As a member whose check-in was rejected, I want to call the referee with a short explanation. *Done when:* the request reaches the support queue with the photo, note, rule and AI reason. I can do this once per check-in, within 24 hours of the verdict, even after my midnight has passed. While the case is open, the day shows as **waiting for referee**, not as missed.
 - **7.2** As support (the admin, during testing), I want a queue of referee cases where I can accept or reject each one with a reason. *Done when:* the member sees the result and the reason, and the decision is final.
 - **7.3** Every case is decided before settlement. Anything support hasn't decided by **48 hours after the challenge ends** counts as accepted. The app profits when stakes are lost, so ties go to the member.
 
@@ -83,7 +83,8 @@ Buying, cashing out or transferring tokens, public challenges, leaderboards, cha
 
 ## Open questions for you
 1. **App fee:** is 10% of forfeited stakes right?
-2. **Friends contesting:** can a member call the referee on a *friend's* accepted check-in, e.g. a photo they know was staged? My default is no, only on your own.
-3. **Stake size:** the creator picks any amount from 10 to 500. Should it be fixed instead?
-4. **Grace period:** none for late check-ins. Should there be one or two hours?
-5. **Countries:** which countries do you hope to launch in with real money? The lawyer will need this first.
+2. **Retries:** 3 a day is my default. More, fewer, or unlimited?
+3. **Friends contesting:** can a member call the referee on a *friend's* accepted check-in, e.g. a photo they know was staged? My default is no, only on your own.
+4. **Stake size:** the creator picks any amount from 10 to 500. Should it be fixed instead?
+5. **Grace period:** none for late check-ins. Should there be one or two hours?
+6. **Countries:** which countries do you hope to launch in with real money? The lawyer will need this first.

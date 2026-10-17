@@ -30,9 +30,9 @@ A **table** is like a spreadsheet tab; each row is one record.
 | `challenges` | a challenge | creator, title, rule, schedule, start date, length, stake, misses allowed, **app fee %** (copied in at creation), **status** |
 | `challenge_members` | one person in one challenge | challenge, user, joined at, **time zone** (fixed at joining), **result** (in progress / finished / forfeited) |
 | `invites` | an invite code | challenge, code, expires at |
-| `check_ins` | one photo and note | member, the day it counts for, photo path, note, **state** (pending / accepted / rejected) |
+| `check_ins` | one photo and note (a retry is a new row) | member, the day it counts for, attempt number (1 to 3), photo path, note, **state** (pending / accepted / rejected) |
 | `ai_checks` | the AI's verdict on a check-in | check-in, label, one-line reason, model name, time taken |
-| `referee_cases` | a request for support to overrule the AI | check-in, who asked, explanation (empty if the AI was unsure), support's decision, reason, decided by |
+| `referee_cases` | a request for support to overrule the AI | check-in, who asked, explanation, support's decision, reason, decided by |
 | `push_tokens` | a phone's notification address | user, token |
 | `ledger_accounts`, `ledger_transactions`, `ledger_entries` | the token ledger | see below |
 
@@ -81,9 +81,9 @@ Step 5 of the plan builds this first, with automated tests, including "settling 
 1. The app uploads the photo to private Storage and creates the check-in row as *pending*.
 2. That new row triggers the **`ai-check` Edge Function** on the server.
 3. The function sends the photo, the note and the challenge's rule to a vision AI model and asks for one of three labels with a one-line reason.
-4. It saves the result in `ai_checks`. *Likely okay* sets the check-in to *accepted*, and *likely not okay* sets it to *rejected*. *Unsure* leaves it *pending* and opens a referee case automatically.
+4. It saves the result in `ai_checks`. *Likely okay* sets the check-in to *accepted*. *Likely not okay* and *unsure* set it to *rejected*. The AI label is still stored, so we can see how often it was unsure.
 5. If the model errors or takes longer than 30 seconds, the result counts as *unsure*. The AI's API key lives only on the server.
-6. A member can open a referee case on their rejected check-in within 24 hours. Support's decision overwrites the state and is recorded with who decided and why.
+6. On a rejected check-in, the member can **retry** (a new check-in row, at most 3 a day, before their midnight) or open a **referee case** (within 24 hours). Support's decision overwrites the state and is recorded with who decided and why.
 
 The model's name is saved with every verdict so we can compare models later (plan step 7: a labelled test set of 50 to 100 photos). Which model and provider to use is decided in that step.
 
