@@ -1,0 +1,94 @@
+import { Image, StyleSheet, Text, View } from 'react-native';
+
+import { EmptyState, Screen, SectionLabel, TokenBadge } from '@/components/ui';
+import { displayNameOf, useAuth } from '@/lib/auth';
+import { colors, fonts, radius } from '@/theme';
+
+export default function HomeScreen() {
+  const { session } = useAuth();
+  const today = new Date()
+    .toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+    .toUpperCase();
+
+  return (
+    <Screen>
+      <View style={styles.header}>
+        <View style={styles.brand}>
+          <Image source={require('../../../assets/images/icon.png')} style={styles.logo} />
+          <Text style={styles.wordmark}>Zatouna</Text>
+        </View>
+        {/* New users start at 0 (PRODUCT.md 1.2); the real balance arrives with the ledger. */}
+        <TokenBadge balance={0} />
+      </View>
+
+      <View style={styles.welcome}>
+        <Text style={styles.date}>{today}</Text>
+        <Text style={styles.greeting}>
+          Welcome back,{'\n'}
+          <Text style={styles.greetingName}>{displayNameOf(session)}!</Text>
+        </Text>
+        <View style={styles.stats}>
+          <Stat label="Active" value={0} />
+          <Stat label="Won" value={0} />
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <SectionLabel>Next up</SectionLabel>
+        <EmptyState
+          title="No challenges yet"
+          body="Challenges you join will show up here, with what's due today."
+        />
+      </View>
+    </Screen>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: number }) {
+  return (
+    <View style={styles.stat}>
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={styles.statValue}>{value}</Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  brand: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  logo: { width: 40, height: 40, borderRadius: 12 },
+  wordmark: { fontFamily: fonts.serif, fontSize: 22, color: colors.text },
+  welcome: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.panel,
+    padding: 24,
+    gap: 16,
+  },
+  date: {
+    fontFamily: fonts.sansBold,
+    fontSize: 11,
+    letterSpacing: 2,
+    color: colors.onPrimaryMuted,
+  },
+  greeting: { fontFamily: fonts.serif, fontSize: 34, lineHeight: 42, color: colors.text },
+  greetingName: { fontFamily: fonts.serifBold },
+  stats: { flexDirection: 'row', gap: 12, marginTop: 8 },
+  stat: {
+    flex: 1,
+    backgroundColor: colors.onPrimaryTile,
+    borderColor: colors.onPrimaryTile,
+    borderWidth: 1,
+    borderRadius: radius.tile,
+    padding: 16,
+    gap: 6,
+  },
+  statLabel: {
+    fontFamily: fonts.sansBold,
+    fontSize: 10,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    color: colors.onPrimaryMuted,
+  },
+  statValue: { fontFamily: fonts.serif, fontSize: 28, color: colors.text },
+  section: { gap: 12 },
+});

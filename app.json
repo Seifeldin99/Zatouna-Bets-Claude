@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "Zatouna",
+    "slug": "zatouna",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "zatouna",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#000000",
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.zatouna.app"
+    },
+    "android": {
+      "package": "com.zatouna.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#202022",
+        "foregroundImage": "./assets/images/android-icon-foreground.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [
+      "expo-router",
+      "expo-system-ui",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
+          "backgroundColor": "#000000"
+        }
+      ]
+    ]
+  }
+}
