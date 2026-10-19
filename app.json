@@ -36,6 +36,12 @@
           "backgroundColor": "#000000"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "c0ab21d5-4d38-4270-af0c-5f67fcd2970e"
+      }
+    },
+    "owner": "seifeldin99s-team"
   }
 }
