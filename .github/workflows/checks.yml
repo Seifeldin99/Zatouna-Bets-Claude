@@ -1,0 +1,22 @@
+name: Checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      # The runner image ships PostgreSQL 16; the tests start their own throwaway server.
+      - run: npm run test:db
+        env:
+          PG_BIN: /usr/lib/postgresql/16/bin

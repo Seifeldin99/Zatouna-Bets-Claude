@@ -25,10 +25,12 @@ Zatouna is a habit app where friends stake tokens on finishing challenges. Expo 
 - Database changes go through migration files in `supabase/migrations/`. Never edit the database by hand in the dashboard.
 - `EXPO_PUBLIC_*` variables are compiled into the app and readable by anyone: only the Supabase URL and publishable key go there. Service-role keys and AI keys live only in Supabase function secrets.
 - Never commit `.env` files, tokens or passwords.
+- New database functions are closed to the app by default (the ledger migration revoked the default execute grants). A function the phone may call needs an explicit `grant execute ... to authenticated` in its migration; server-only functions get `to service_role`.
 - Builds read `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` from the EAS `preview` environment.
 
 ## Before opening a pull request
 - `npm run check` (typecheck and lint) passes.
+- `npm run test:db` (database and ledger tests) passes. It needs a local PostgreSQL; it refuses to run as root, so in a root container run it as the `postgres` user.
 - For app changes, the Android bundle builds: `npx expo export --platform android` with the two `EXPO_PUBLIC_*` variables set.
 - Android test build: `npx eas-cli@latest build --profile preview --platform android` produces an install link (APK, internal distribution).
 
@@ -36,3 +38,4 @@ Zatouna is a habit app where friends stake tokens on finishing challenges. Expo 
 - `src/app/`: screens (Expo Router). `(tabs)/` holds Home, Bets and Settings; `sign-in.tsx` is shown when signed out.
 - `src/lib/`: Supabase client and auth state.
 - `src/components/ui.tsx`: shared building blocks (Screen, Card, Button, TextField, TokenBadge).
+- `supabase/migrations/`: database changes. `supabase/tests/`: database tests (Node test runner against a throwaway local Postgres with a small Supabase stand-in).
