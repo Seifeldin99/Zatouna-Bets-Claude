@@ -351,6 +351,63 @@ describe('the payout', () => {
     await assert.rejects(callReferee(ben, bensCheckIn), /already/);
   });
 
+  test('pays out the moment the challenge ends when nothing can change the result', async () => {
+    const ana = await user('Ana');
+    const ben = await user('Ben');
+    const challenge = await newChallenge(ana, { lengthDays: 1 });
+    await joinAs(ben, challenge);
+    await checkIn(ana, challenge, 'likely_ok');
+    // Ben never sent a photo: nothing to contest. Even with a long call window the payout is instant.
+    await shiftBack(challenge, 2);
+    await settings({ call: 48, finalize: 48 });
+    const r = await finish();
+    assert.deepEqual(r, { ended: 1, cases_accepted: 0, settled: 1, failed: 0 });
+    assert.equal(await db.balanceOf(ana), 200);
+    assert.equal((await results(ana, challenge)).waiting_for, null);
+  });
+
+  test('waits while a rejected last-day photo can still go to the referee, then while the case is open', async () => {
+    const { ana, ben, challenge, bensCheckIn } = await twoMembers();
+    const admin = await user('Seif', 0, { role: 'admin' });
+    await shiftBack(challenge, 2);
+    await settings({ call: 48, finalize: 48 });
+    assert.equal((await finish()).settled, 0, 'Ben can still call the referee');
+    assert.equal((await results(ben, challenge)).waiting_for, 'calls');
+    const caseId = await callReferee(ben, bensCheckIn);
+    assert.equal((await finish()).settled, 0, 'the case is open');
+    assert.equal((await results(ana, challenge)).waiting_for, 'cases');
+    await decide(admin, caseId, false, 'No cat.');
+    assert.equal((await finish()).settled, 1);
+    assert.equal(await db.balanceOf(ana), 200);
+    assert.equal(await db.balanceOf(ben), 0);
+  });
+
+  test('waits while a photo is still being checked', async () => {
+    const { ana, challenge } = await twoMembers();
+    await shiftBack(challenge, 2);
+    // The call window is over; the 6-hour limit is not (48 here, since the end was moved two days back).
+    await settings({ call: 0, finalize: 48 });
+    const { member_id, day } = await db.one(
+      `select member_id, day from check_ins where challenge_id = $1 and user_id = $2`,
+      [challenge, ana],
+    );
+    // A photo sent just before midnight, still with the AI.
+    const { id: pending } = await db.one(
+      `insert into check_ins (challenge_id, member_id, user_id, day, attempt, photo_path)
+       values ($1, $2, $3, $4, 2, 'late.jpg') returning id`,
+      [challenge, member_id, ana, day],
+    );
+    assert.equal((await finish()).settled, 0);
+    assert.equal((await results(ana, challenge)).waiting_for, 'pending');
+    // Three minutes pass with no verdict: the photo is written off, and the payout runs.
+    await db.owner.query(`alter table check_ins disable trigger check_ins_guard`);
+    await db.owner.query(`update check_ins set created_at = now() - interval '4 minutes' where id = $1`, [pending]);
+    await db.owner.query(`alter table check_ins enable trigger check_ins_guard`);
+    await db.as('service_role', (c) => c.query(`select expire_stale_check_ins()`));
+    assert.equal((await finish()).settled, 1);
+    assert.equal(await db.balanceOf(ana), 200, 'the day was already done with the first photo');
+  });
+
   test('a member who quit shows as quit; when nobody finishes the pool goes to the app', async () => {
     const ana = await user('Ana');
     const ben = await user('Ben');

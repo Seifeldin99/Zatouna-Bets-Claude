@@ -114,6 +114,11 @@ export type Results = {
   pays_out_by: string;
   settled_at: string | null;
   open_cases: number;
+  /**
+   * What the payout waits for: a photo still being checked, a rejected last-day
+   * photo whose owner can still call the referee, or an open case. Null: nothing.
+   */
+  waiting_for: 'pending' | 'calls' | 'cases' | null;
   forfeited: number | null;
   app_fee: number | null;
   leftover: number | null;

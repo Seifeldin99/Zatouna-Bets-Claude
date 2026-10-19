@@ -69,7 +69,7 @@ Zatouna lets you "bet on yourself": join a private challenge with friends, stake
 - **8.3** Only whole tokens are paid out. Rounding leftovers go to the app.
 - **8.4** As a member, I want a results screen showing who finished, who forfeited, the app fee, and what I received.
 - **8.5** Settlement happens **exactly once** per challenge, even if the app or server retries.
-- **8.6** The payout runs as soon as nothing can change the result: **1 hour after the challenge ends** if no referee case is open, otherwise the moment the last case is decided, and **6 hours after the end** at the latest (any case still open then counts as accepted). Until then the challenge shows "Ended · waiting for the results".
+- **8.6** The payout runs **the moment the challenge ends**, unless something can still change the result: a photo still being checked, a rejected last-day photo whose owner can still call the referee (up to 1 hour after their last midnight), or an open referee case. Then it runs as soon as that is settled, and **6 hours after the end** at the latest (any case still open then counts as accepted). Until then the challenge shows "Ended" with what it waits for.
 - **8.7** As a user, I want to tap my token balance and see every change to it: date, amount and reason (story 1.3).
 
 *Example:* 4 members stake 100 each, and 3 finish. Forfeited: 100. App fee: 10. Each finisher gets 100 + 30 = 130. During testing (0% fee): 100 ÷ 3 = 33 each, so each finisher gets 133 and the 1 leftover token goes to the app.

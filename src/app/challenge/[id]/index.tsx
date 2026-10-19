@@ -384,17 +384,26 @@ function TodayCard({
 /** The end of the challenge: waiting for the payout, or who got what (product story 8.4). */
 function ResultsCard({ c, results: r }: { c: Challenge; results: Results }) {
   if (r.status !== 'settled') {
-    const waitingForReferee = r.open_cases > 0;
+    const title =
+      r.waiting_for === 'cases'
+        ? 'Ended · waiting for the referee'
+        : r.waiting_for === 'calls'
+          ? 'Ended · a referee call is still possible'
+          : 'Ended · paying out';
+    const text =
+      r.waiting_for === 'cases'
+        ? `${r.open_cases === 1 ? 'One referee case is' : `${r.open_cases} referee cases are`} still open. The pool is paid out as soon as it is decided, and by ${formatDateTime(r.pays_out_by)} at the latest.`
+        : r.waiting_for === 'calls'
+          ? `A last-day photo was not accepted, and its owner can still call the referee until ${formatDateTime(r.calls_close_at)}. The pool is paid out when that passes, or once a case is decided.`
+          : r.waiting_for === 'pending'
+            ? 'A photo is still being checked. The pool is paid out right after.'
+            : 'The pool is paid out within a minute. Pull down to refresh.';
     return (
       <View style={styles.section}>
         <SectionLabel>Results</SectionLabel>
         <Card style={styles.today}>
-          <Text style={styles.todayTitle}>{waitingForReferee ? 'Ended · waiting for the referee' : 'Ended · waiting for the results'}</Text>
-          <Text style={styles.todayText}>
-            {waitingForReferee
-              ? `${r.open_cases === 1 ? 'One referee case is' : `${r.open_cases} referee cases are`} still open. The pool is paid out as soon as it is decided, and by ${formatDateTime(r.pays_out_by)} at the latest.`
-              : `The pool is paid out by ${formatDateTime(r.pays_out_by)}. Pull down to refresh.`}
-          </Text>
+          <Text style={styles.todayTitle}>{title}</Text>
+          <Text style={styles.todayText}>{text}</Text>
         </Card>
       </View>
     );
