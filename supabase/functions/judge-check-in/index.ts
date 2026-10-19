@@ -11,7 +11,8 @@ type Verdict = { label: Label; reason: string; model: string; tookMs: number };
 
 /** Product story 6.1: a verdict within about a minute. The AI gets 45 seconds. */
 const AI_TIMEOUT_MS = 45_000;
-const DEFAULT_MODEL = 'claude-opus-5-5';
+// The cheapest current model, chosen for testing; the owner can set AI_MODEL to try others.
+const DEFAULT_MODEL = 'claude-haiku-5-5';
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 const REASON_MAX = 280;
 
