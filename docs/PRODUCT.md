@@ -59,18 +59,20 @@ Zatouna lets you "bet on yourself": join a private challenge with friends, stake
 - **6.2** As a member whose check-in was rejected, I want two buttons: **Retry** (take a new photo and note) and **Referee**. *Done when:* both appear on every rejected check-in. I can retry **as many times as I like** until my midnight. The day counts as soon as one check-in is accepted.
 
 ### 7. Referee (customer support)
-- **7.1** As a member whose check-in was rejected, I want to call the referee on **my own** check-in with a short explanation. *Done when:* the request reaches the support queue with the photo, note, rule and AI reason. I can do this once per check-in, within 24 hours of the verdict, even after my midnight has passed. While the case is open, the day shows as **waiting for referee**, not as missed.
+- **7.1** As a member whose check-in was rejected, I want to call the referee on **my own** check-in with a short explanation. *Done when:* the request reaches the support queue with the photo, note, rule and AI reason. I can do this once per check-in, within 24 hours of the verdict, even after my midnight has passed. On the **last day** of the challenge the call closes **1 hour after my last midnight** (a server setting), so the payout isn't held up. While the case is open, the day shows as **waiting for referee**, not as missed.
 - **7.2** As support (the admin, during testing), I want a queue of referee cases where I can accept or reject each one with a reason. *Done when:* the member sees the result and the reason, and the decision is final.
-- **7.3** Every case is decided before settlement. Anything support hasn't decided by **48 hours after the challenge ends** counts as accepted. The app profits when stakes are lost, so ties go to the member.
+- **7.3** Every case is decided before settlement. A case support hasn't decided counts as accepted **48 hours after it was sent, or 6 hours after the challenge ends, whichever comes first** (server settings). The queue shows the case that expires soonest first, with a countdown. The app profits when stakes are lost, so ties go to the member.
 
 ### 8. The pool and the app fee
-- **8.1** When a challenge ends, the app takes **10% of the forfeited stakes**. Finishers split the rest equally, and each also gets their own stake back. If everyone finishes, there's no fee and everyone gets their stake back.
+- **8.1** When a challenge ends, the app takes a fee from the forfeited stakes: **10%** once real money is in play, **0% during testing** (a server setting, copied into each challenge when it is created). Finishers split the rest equally, and each also gets their own stake back. If everyone finishes, there's no fee and everyone gets their stake back.
 - **8.2** If nobody finishes, the whole pool goes to the app.
 - **8.3** Only whole tokens are paid out. Rounding leftovers go to the app.
 - **8.4** As a member, I want a results screen showing who finished, who forfeited, the app fee, and what I received.
 - **8.5** Settlement happens **exactly once** per challenge, even if the app or server retries.
+- **8.6** The payout runs as soon as nothing can change the result: **1 hour after the challenge ends** if no referee case is open, otherwise the moment the last case is decided, and **6 hours after the end** at the latest (any case still open then counts as accepted). Until then the challenge shows "Ended · waiting for the results".
+- **8.7** As a user, I want to tap my token balance and see every change to it: date, amount and reason (story 1.3).
 
-*Example:* 4 members stake 100 each, and 3 finish. Forfeited: 100. App fee: 10. Each finisher gets 100 + 30 = 130.
+*Example:* 4 members stake 100 each, and 3 finish. Forfeited: 100. App fee: 10. Each finisher gets 100 + 30 = 130. During testing (0% fee): 100 ÷ 3 = 33 each, so each finisher gets 133 and the 1 leftover token goes to the app.
 
 ### 9. Reminders
 - **9.1** As a member, I want a notification at a time I choose on days I still owe a check-in, plus a "last chance" one two hours before my midnight. *Done when:* none is sent once I've checked in, and I can turn them off per challenge.

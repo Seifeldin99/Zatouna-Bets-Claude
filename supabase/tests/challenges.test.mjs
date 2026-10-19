@@ -91,7 +91,7 @@ describe('creating a challenge', () => {
     assert.equal(c.title, 'Read a Book');
     assert.equal(c.rule, BOOK_RULE);
     assert.equal(c.stake, 50);
-    assert.equal(c.app_fee_percent, 10);
+    assert.equal(c.app_fee_percent, 0, 'no fee during testing: copied from the server setting');
     assert.equal(c.time_zone, TZ);
     assert.equal(c.deleted_at, null);
 

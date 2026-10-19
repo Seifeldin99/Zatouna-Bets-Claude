@@ -290,22 +290,30 @@ describe('deciding', () => {
     );
   });
 
-  test('a case nobody decided within 48 hours of the end counts as accepted', async () => {
-    const { creator, challenge, checkIn } = await rejectedToday({ lengthDays: 1 });
+  test('a case nobody decided before its time limit counts as accepted', async () => {
+    const { creator, checkIn } = await rejectedToday({ lengthDays: 7 });
     const caseId = await callReferee(creator, checkIn);
+    // Sent today in a week-long challenge: the limit is 48 hours from now.
+    const limit = await db.one(
+      `select expires_at = created_at + interval '48 hours' as two_days from referee_cases where id = $1`,
+      [caseId],
+    );
+    assert.equal(limit.two_days, true);
     const sweep = () =>
       db.as('service_role', async (c) => (await c.query(`select accept_stale_referee_cases() as n`)).rows[0].n);
-    assert.equal(await sweep(), 0, 'the challenge is still running');
-    // End the challenge three days ago.
-    await db.owner.query(`update challenges set start_date = start_date - 3 where id = $1`, [challenge]);
-    await db.owner.query(`update referee_cases set day = day - 3 where id = $1`, [caseId]).catch(() => {});
+    assert.equal(await sweep(), 0, 'the limit has not passed');
+    // Pretend the limit passed, bypassing the guard the way a clock would.
+    await db.owner.query(`alter table referee_cases disable trigger referee_cases_guard`);
+    await db.owner.query(`update referee_cases set expires_at = now() - interval '1 minute' where id = $1`, [caseId]);
+    await db.owner.query(`alter table referee_cases enable trigger referee_cases_guard`);
     assert.equal(await sweep(), 1);
     const rc = await db.one(`select decision, decided_by, reason from referee_cases where id = $1`, [caseId]);
     assert.equal(rc.decision, 'accepted');
     assert.equal(rc.decided_by, null);
-    assert.match(rc.reason, /48 hours/);
+    assert.match(rc.reason, /time limit/);
     const ci = await db.one(`select state from check_ins where id = $1`, [checkIn]);
     assert.equal(ci.state, 'accepted');
+    assert.equal(await sweep(), 0, 'nothing left to accept');
     await assert.rejects(db.as(creator, (c) => c.query(`select accept_stale_referee_cases()`)), /permission denied/);
   });
 

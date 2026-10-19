@@ -5,7 +5,16 @@ import { Image, StyleSheet, Text, View } from 'react-native';
 import { Button, Card, ErrorText, Hint, InfoBox, InfoRow, Loading, Screen, ScreenHeader, TextField } from '@/components/ui';
 import { formatDate } from '@/lib/dates';
 import { goBack } from '@/lib/navigation';
-import { REASON_MAX, type QueueCase, aiLabelText, decideCase, decisionLabel, photoUrl, refereeCase } from '@/lib/referee';
+import {
+  REASON_MAX,
+  type QueueCase,
+  aiLabelText,
+  decideCase,
+  decisionLabel,
+  photoUrl,
+  refereeCase,
+  timeLeft,
+} from '@/lib/referee';
 import { useLoad } from '@/lib/use-load';
 import { colors, fonts, radius } from '@/theme';
 
@@ -56,6 +65,7 @@ export default function RefereeCaseScreen() {
             <InfoRow label="Member" value={c.member_name} />
             <InfoRow label="Day" value={`${formatDate(c.day)} · attempt ${c.attempt}`} />
             <InfoRow label="AI said" value={aiLabelText(c.ai_label)} />
+            {c.decision === 'open' && <InfoRow label="Decide within" value={timeLeft(c.expires_at)} />}
           </View>
           <InfoBox
             sections={[
@@ -89,7 +99,10 @@ export default function RefereeCaseScreen() {
                 loading={busy === 'reject'}
                 disabled={busy !== null || !reason.trim()}
               />
-              <Hint>The decision is final and the member sees your reason right away.</Hint>
+              <Hint>
+                The decision is final and the member sees your reason right away. If nobody decides in time, the day
+                counts for the member.
+              </Hint>
             </View>
           ) : (
             <Card style={styles.decided}>

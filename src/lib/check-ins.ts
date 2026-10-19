@@ -63,7 +63,14 @@ export type CheckIn = {
   decided_at: string | null;
   verdict: { label: AiLabel; reason: string } | null;
   /** Your referee case on this attempt, if you called one. */
-  referee: { id: string; decision: 'open' | 'accepted' | 'rejected'; reason: string; explanation: string; created_at: string } | null;
+  referee: {
+    id: string;
+    decision: 'open' | 'accepted' | 'rejected';
+    reason: string;
+    explanation: string;
+    created_at: string;
+    expires_at: string;
+  } | null;
 };
 
 export type Verdict = { state: CheckInState; label: AiLabel | null; reason: string };
@@ -92,7 +99,7 @@ export async function latestCheckIn(challengeId: string, day: Ymd): Promise<Chec
   const { data, error } = await supabase
     .from('check_ins')
     .select(
-      'id, day, attempt, note, state, created_at, decided_at, verdict:ai_checks(label, reason), referee:referee_cases(id, decision, reason, explanation, created_at)',
+      'id, day, attempt, note, state, created_at, decided_at, verdict:ai_checks(label, reason), referee:referee_cases(id, decision, reason, explanation, created_at, expires_at)',
     )
     .eq('challenge_id', challengeId)
     .eq('day', day)

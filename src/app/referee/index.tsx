@@ -4,11 +4,11 @@ import { Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native'
 import { EmptyState, ErrorText, Loading, Pill, Screen, ScreenHeader } from '@/components/ui';
 import { formatDate } from '@/lib/dates';
 import { goBack } from '@/lib/navigation';
-import { type QueueCase, decisionLabel, refereeQueue } from '@/lib/referee';
+import { type QueueCase, decisionLabel, refereeQueue, timeLeft } from '@/lib/referee';
 import { useLoad } from '@/lib/use-load';
 import { colors, fonts, radius } from '@/theme';
 
-/** The support queue: every referee case, open ones first (story 7.2). */
+/** The support queue: open cases first, the one that auto-accepts soonest on top (story 7.2). */
 export default function RefereeQueueScreen() {
   const { data, error, loading, refreshing, reload } = useLoad(refereeQueue);
 
@@ -54,6 +54,11 @@ function CaseRow({ c }: { c: QueueCase }) {
       <Text style={styles.explanation} numberOfLines={2}>
         {c.decision === 'open' ? c.explanation : `${decisionLabel(c.decision)}: ${c.reason}`}
       </Text>
+      {c.decision === 'open' && (
+        <Text style={[styles.deadline, c.challenge_status !== 'active' && styles.deadlineUrgent]}>
+          {`Counts as accepted in ${timeLeft(c.expires_at)}${c.challenge_status !== 'active' ? ' · challenge ended' : ''}`}
+        </Text>
+      )}
     </Pressable>
   );
 }
@@ -72,4 +77,6 @@ const styles = StyleSheet.create({
   title: { flex: 1, fontFamily: fonts.sansSemiBold, fontSize: 17, color: colors.text },
   meta: { fontFamily: fonts.sans, fontSize: 13, color: colors.textSecondary },
   explanation: { fontFamily: fonts.sans, fontSize: 14, lineHeight: 20, color: colors.text },
+  deadline: { fontFamily: fonts.sansSemiBold, fontSize: 13, color: colors.textSecondary },
+  deadlineUrgent: { color: colors.danger },
 });

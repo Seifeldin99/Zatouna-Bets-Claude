@@ -402,7 +402,7 @@ describe('settlement', () => {
     assert.equal(await db.balanceOf(users[0]), 130);
   });
 
-  test('settlement waits until the challenge is in refereeing and every result is decided', async () => {
+  test('settlement waits until the challenge is in refereeing, then decides every open result itself', async () => {
     const creator = await db.createUser('creator');
     const challenge = await db.createChallenge({ creator, stake: 10 });
     const ana = await db.createUser('Ana');
@@ -411,9 +411,14 @@ describe('settlement', () => {
     await assert.rejects(db.settle(challenge), /only be settled from refereeing/);
     await db.setStatus(challenge, 'active');
     await assert.rejects(db.settle(challenge), /only be settled from refereeing/);
-    await db.setStatus(challenge, 'refereeing');
-    await assert.rejects(db.settle(challenge), /finished or forfeited/);
     assert.equal(await db.poolBalance(challenge), 10);
+    await db.setStatus(challenge, 'refereeing');
+    // Ana never checked in: more misses than allowed, so she forfeits and the pool goes to the app.
+    assert.equal(await db.settle(challenge), 'settled');
+    const m = await db.one(`select result from challenge_members where challenge_id = $1`, [challenge]);
+    assert.equal(m.result, 'forfeited');
+    assert.equal(await db.balanceOf(ana), 0);
+    assert.equal(await db.systemBalance('app_revenue'), 10);
     await assert.rejects(db.settle(randomUUID()), /no such challenge/);
   });
 
