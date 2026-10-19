@@ -32,11 +32,12 @@ async function today(tz = TZ, plusDays = 0) {
   return d;
 }
 
+const BOOK_RULE = 'A photo of the open book you are currently reading.';
+
 // Creates a challenge the way the app does, with sensible defaults.
 async function create(user, overrides = {}, client) {
   const f = {
-    title: 'Read 20 minutes',
-    rule: 'Photo of the book with the page number.',
+    template: 'read_a_book',
     timesPerWeek: 7,
     startDate: await today(TZ, 1),
     lengthDays: 7,
@@ -49,9 +50,8 @@ async function create(user, overrides = {}, client) {
     user,
     async (c) =>
       (
-        await c.query(`select create_challenge($1, $2, $3, $4, $5, $6, $7, $8) as id`, [
-          f.title,
-          f.rule,
+        await c.query(`select create_challenge($1, $2, $3, $4, $5, $6, $7) as id`, [
+          f.template,
           f.timesPerWeek,
           f.startDate,
           f.lengthDays,
@@ -87,7 +87,9 @@ describe('creating a challenge', () => {
     const c = await db.one(`select * from challenges where id = $1`, [challenge]);
     assert.equal(c.status, 'open');
     assert.equal(c.creator_id, creator);
-    assert.equal(c.title, 'Read 20 minutes');
+    assert.equal(c.template, 'read_a_book');
+    assert.equal(c.title, 'Read a Book');
+    assert.equal(c.rule, BOOK_RULE);
     assert.equal(c.stake, 50);
     assert.equal(c.app_fee_percent, 10);
     assert.equal(c.time_zone, TZ);
@@ -111,12 +113,37 @@ describe('creating a challenge', () => {
     assert.equal(await db.poolBalance(challenge), 50);
   });
 
-  test('trims the title and rule', async () => {
+  test('takes its title and rule from the chosen template', async () => {
     const creator = await db.createUser('Ana');
-    await db.give(creator, 10);
-    const id = await create(creator, { title: '  Walk  ', rule: ' Steps screenshot ', stake: 10 });
-    const c = await db.one(`select title, rule from challenges where id = $1`, [id]);
-    assert.deepEqual(c, { title: 'Walk', rule: 'Steps screenshot' });
+    await db.give(creator, 70);
+    const templates = (await db.owner.query(`select key, title, rule from challenge_templates order by position`))
+      .rows;
+    assert.deepEqual(
+      templates.map((t) => t.key),
+      ['read_a_book', 'workout', 'sunshine', 'journaling', 'eating_fruits', 'learn_french', 'pet_cat'],
+    );
+    for (const t of templates) {
+      const id = await create(creator, { template: t.key, stake: 10 });
+      const c = await db.one(`select template, title, rule from challenges where id = $1`, [id]);
+      assert.deepEqual(c, { template: t.key, title: t.title, rule: t.rule });
+    }
+  });
+
+  test('refuses anything that is not a template: no custom challenges', async () => {
+    const creator = await db.createUser('Ana');
+    await db.give(creator, 100);
+    for (const template of ['custom', 'Read a Book', 'READ_A_BOOK', '', null]) {
+      await assert.rejects(create(creator, { template }), /pick one of the challenge templates/);
+    }
+    // The old way, with a title and a rule written by the app, is gone.
+    await assert.rejects(
+      db.as(creator, (c) =>
+        c.query(`select create_challenge('My own', 'Any photo', 7, current_date + 1, 7, 10, 0, $1)`, [TZ]),
+      ),
+      /does not exist/,
+    );
+    assert.equal((await db.one(`select count(*)::int as n from challenges`)).n, 0);
+    assert.equal(await db.balanceOf(creator), 100);
   });
 
   test('is undone entirely when the creator cannot afford the stake', async () => {
@@ -133,9 +160,6 @@ describe('creating a challenge', () => {
     const creator = await db.createUser('Ana');
     await db.give(creator, 100);
     const cases = [
-      [{ title: '   ' }, /give the challenge a title/],
-      [{ title: 'x'.repeat(81) }, /80 characters at most/],
-      [{ rule: 'x'.repeat(281) }, /280 characters at most/],
       [{ timesPerWeek: 0 }, /between 1 and 7 times a week/],
       [{ timesPerWeek: 8 }, /between 1 and 7 times a week/],
       [{ lengthDays: 0 }, /between 1 and 30 days/],
@@ -195,7 +219,7 @@ describe('creating a challenge', () => {
     await db.owner.query('begin');
     await db.owner.query('set local role anon');
     await assert.rejects(
-      db.owner.query(`select create_challenge('x', '', 7, current_date, 7, 1, 0, 'UTC')`),
+      db.owner.query(`select create_challenge('pet_cat', 7, current_date, 7, 1, 0, 'UTC')`),
       /permission denied/,
     );
     await db.owner.query('rollback');
@@ -207,6 +231,31 @@ describe('creating a challenge', () => {
 });
 
 describe('seeing challenges and invites', () => {
+  test('signed-in users read the seven templates; nobody edits them from the app', async () => {
+    const ana = await db.createUser('Ana');
+    const rows = await db.as(ana, async (c) =>
+      (await c.query(`select key, title, goal, recommendation, rule from challenge_templates order by position`)).rows,
+    );
+    assert.equal(rows.length, 7);
+    assert.equal(rows[0].title, 'Read a Book');
+    assert.equal(rows[6].title, 'Pet Cat');
+    for (const row of rows) {
+      for (const field of ['goal', 'recommendation', 'rule']) assert.ok(row[field].length > 0, `${row.key} ${field}`);
+    }
+    for (const sql of [
+      `update challenge_templates set rule = 'Anything' where key = 'pet_cat'`,
+      `delete from challenge_templates where key = 'pet_cat'`,
+      `insert into challenge_templates (key, position, title, goal, recommendation, rule)
+       values ('mine', 8, 'Mine', 'g', 'r', 'any photo')`,
+    ]) {
+      await assert.rejects(db.as(ana, (c) => c.query(sql)), /permission denied/);
+    }
+    await db.owner.query('begin');
+    await db.owner.query('set local role anon');
+    await assert.rejects(db.owner.query(`select * from challenge_templates`), /permission denied/);
+    await db.owner.query('rollback');
+  });
+
   test('the creator and members read the challenge; the creator alone reads the code', async () => {
     const { creator, challenge, code } = await setup();
     const ben = await db.createUser('Ben');
@@ -216,8 +265,8 @@ describe('seeing challenges and invites', () => {
 
     const titles = async (user) =>
       db.as(user, async (c) => (await c.query(`select title from challenges`)).rows.map((r) => r.title));
-    assert.deepEqual(await titles(creator), ['Read 20 minutes']);
-    assert.deepEqual(await titles(ben), ['Read 20 minutes']);
+    assert.deepEqual(await titles(creator), ['Read a Book']);
+    assert.deepEqual(await titles(ben), ['Read a Book']);
     assert.deepEqual(await titles(carl), []);
 
     const codes = async (user) =>
@@ -257,8 +306,8 @@ describe('seeing challenges and invites', () => {
     const ben = await db.createUser('Ben');
 
     const p = await preview(ben, code);
-    assert.equal(p.title, 'Read 20 minutes');
-    assert.equal(p.rule, 'Photo of the book with the page number.');
+    assert.equal(p.title, 'Read a Book');
+    assert.equal(p.rule, BOOK_RULE);
     assert.equal(p.stake, 25);
     assert.equal(p.times_per_week, 7);
     assert.equal(p.length_days, 7);
@@ -281,7 +330,7 @@ describe('seeing challenges and invites', () => {
     const { code } = await setup();
     const ben = await db.createUser('Ben');
     const p = await preview(ben, `  ${code.toLowerCase()} `);
-    assert.equal(p.title, 'Read 20 minutes');
+    assert.equal(p.title, 'Read a Book');
   });
 
   test('a wrong code says so', async () => {
@@ -316,7 +365,7 @@ describe('seeing challenges and invites', () => {
     await assert.rejects(db.join(carl, challenge), /not open for joining/);
     await assert.rejects(db.as(ben, (c) => c.query(`select leave_challenge($1)`, [challenge])), /only leave before/);
     await assert.rejects(
-      db.as(creator, (c) => c.query(`select update_challenge($1, 'New', '', 7, current_date, 7, 0)`, [challenge])),
+      db.as(creator, (c) => c.query(`select update_challenge($1, 7, current_date, 7, 0)`, [challenge])),
       /cannot change after its first day/,
     );
     await assert.rejects(db.as(creator, (c) => c.query(`select delete_challenge($1)`, [challenge])), /cannot be deleted after its first day/);
@@ -343,10 +392,10 @@ describe('seeing challenges and invites', () => {
     assert.equal(await db.balanceOf(ben), 50);
     await db.join(ben, challenge);
 
-    await db.as(creator, (c) => c.query(`select update_challenge($1, 'Renamed', '', 7, current_date, 1, 0)`, [challenge]));
-    assert.equal((await db.one(`select title from challenges where id = $1`, [challenge])).title, 'Renamed');
+    await db.as(creator, (c) => c.query(`select update_challenge($1, 7, current_date, 1, 0)`, [challenge]));
+    assert.equal((await db.one(`select length_days from challenges where id = $1`, [challenge])).length_days, 1);
     await assert.rejects(
-      db.as(creator, (c) => c.query(`select update_challenge($1, 'Renamed', '', 7, current_date + 1, 7, 0)`, [challenge])),
+      db.as(creator, (c) => c.query(`select update_challenge($1, 7, current_date + 1, 7, 0)`, [challenge])),
       /start date cannot change/,
     );
 
@@ -378,10 +427,8 @@ describe('seeing challenges and invites', () => {
 describe('editing a challenge', () => {
   async function update(user, id, f) {
     return db.as(user, (c) =>
-      c.query(`select update_challenge($1, $2, $3, $4, $5, $6, $7)`, [
+      c.query(`select update_challenge($1, $2, $3, $4, $5)`, [
         id,
-        f.title,
-        f.rule,
         f.timesPerWeek,
         f.startDate,
         f.lengthDays,
@@ -390,20 +437,19 @@ describe('editing a challenge', () => {
     );
   }
   const changes = async () => ({
-    title: 'Read 30 minutes',
-    rule: 'New rule',
     timesPerWeek: 5,
     startDate: await today(TZ, 3),
     lengthDays: 14,
     missesAllowed: 2,
   });
 
-  test('the creator changes everything but the stake; the invite follows the new start', async () => {
+  test('the creator changes the schedule but not the stake, title or rule; the invite follows', async () => {
     const { creator, challenge } = await setup();
     await update(creator, challenge, await changes());
     const c = await db.one(`select * from challenges where id = $1`, [challenge]);
-    assert.equal(c.title, 'Read 30 minutes');
-    assert.equal(c.rule, 'New rule');
+    assert.equal(c.template, 'read_a_book');
+    assert.equal(c.title, 'Read a Book');
+    assert.equal(c.rule, BOOK_RULE);
     assert.equal(c.times_per_week, 5);
     assert.equal(c.length_days, 14);
     assert.equal(c.misses_allowed, 2);
@@ -426,8 +472,24 @@ describe('editing a challenge', () => {
     await assert.rejects(update(ben, challenge, await changes()), /only the creator can edit/);
     await assert.rejects(update(carl, challenge, await changes()), /only the creator can edit/);
     await assert.rejects(update(carl, '00000000-0000-0000-0000-000000000000', await changes()), /only the creator/);
-    const c = await db.one(`select title from challenges where id = $1`, [challenge]);
-    assert.equal(c.title, 'Read 20 minutes');
+    const c = await db.one(`select times_per_week from challenges where id = $1`, [challenge]);
+    assert.equal(c.times_per_week, 7);
+  });
+
+  test('the title and rule cannot be edited at all', async () => {
+    const { creator, challenge } = await setup();
+    await assert.rejects(
+      db.as(creator, (c) =>
+        c.query(`select update_challenge($1, 'Renamed', 'New rule', 7, current_date + 1, 7, 0)`, [challenge]),
+      ),
+      /does not exist/,
+    );
+    await assert.rejects(
+      db.as(creator, (c) => c.query(`update challenges set title = 'Renamed' where id = $1`, [challenge])),
+      /permission denied/,
+    );
+    const c = await db.one(`select title, rule from challenges where id = $1`, [challenge]);
+    assert.deepEqual(c, { title: 'Read a Book', rule: BOOK_RULE });
   });
 
   test('nothing changes once the challenge has started', async () => {
@@ -440,7 +502,7 @@ describe('editing a challenge', () => {
     const { creator, challenge } = await setup();
     await assert.rejects(update(creator, challenge, { ...(await changes()), lengthDays: 40 }), /between 1 and 30/);
     await assert.rejects(update(creator, challenge, { ...(await changes()), missesAllowed: 14 }), /misses allowed/);
-    await assert.rejects(update(creator, challenge, { ...(await changes()), title: '' }), /give the challenge a title/);
+    await assert.rejects(update(creator, challenge, { ...(await changes()), timesPerWeek: 0 }), /times a week/);
   });
 });
 
@@ -484,7 +546,7 @@ describe('deleting a challenge', () => {
       (await c.query(`select t.kind, t.note from ledger_transactions t order by t.created_at`)).rows,
     );
     assert.deepEqual(history.map((h) => h.kind), ['gift', 'stake', 'refund']);
-    assert.equal(history[2].note, 'Refund: Read 20 minutes was deleted');
+    assert.equal(history[2].note, 'Refund: Read a Book was deleted');
   });
 
   test('deleting twice at once refunds once', async () => {
@@ -521,7 +583,7 @@ describe('starting', () => {
     const { creator, challenge } = await setup();
     const startToday = await today();
     await db.as(creator, (c) =>
-      c.query(`select update_challenge($1, 'Read 20 minutes', '', 7, $2, 7, 0)`, [challenge, startToday]),
+      c.query(`select update_challenge($1, 7, $2, 7, 0)`, [challenge, startToday]),
     );
     assert.equal((await db.one(`select status from challenges where id = $1`, [challenge])).status, 'active');
   });

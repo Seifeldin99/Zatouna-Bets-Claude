@@ -1,6 +1,6 @@
 # Challenge templates (carried over from the Gemini app)
 
-The owner's Gemini build offered seven preset challenges. In the rebuild they become **templates**: picking one pre-fills the title and rule of a new private challenge (PRODUCT.md story 2.1), and its AI instruction seeds the AI check prompt (story 6.1, plan Step 7). The creator can still edit everything before the challenge starts.
+The owner's Gemini build offered seven preset challenges. In the rebuild they are the **only** way to make a challenge (owner's decision, 2026-10-19: no custom challenges or rules in the first draft). Picking one sets the title and rule of a new private challenge (PRODUCT.md story 2.1), and its AI instruction seeds the AI check prompt (story 6.1, plan Step 7). The creator picks the schedule, length, stake and misses; the title and rule can't be edited. The live texts are in the `challenge_templates` table (migration `20261019230000_template_only_challenges.sql`).
 
 Text below is copied from the Gemini app (`challengeDescriptions` in `App.tsx` and `verifyProof` in `geminiService.ts`), lightly tidied.
 
@@ -14,7 +14,7 @@ Text below is copied from the Gemini app (`challengeDescriptions` in `App.tsx` a
 | **Eating Fruits** | Improve daily nutrition by building a habit of eating fruits | Use fruits as a healthier alternative to reduce sweets | A photo of a fruit, daily | The photo must contain a fruit. Reject reason: "No fruit detected, please take a clearer photo." |
 | **Learn French** | Improve your French by practising writing consistently | The best way to learn is active practice. If you can't free-write yet, use resources or copy for guidance until you are comfortable writing on your own | A photo of handwritten French text, daily, at least 50 words. A new suggested topic each day | The photo must contain handwritten French text of at least 50 words. Reject reason: "Handwritten French text of at least 50 words not detected, please take a clearer photo." |
 
-Custom challenges (no template) used a generic instruction: *Analyze whether the image proves the task "{rule}" was completed.* All prompts asked the model to be "strict but fair" and return `approved` plus a one-line reason. The rebuild's AI check must return the spec's three verdicts (likely okay / unsure / likely not okay), with unsure counting as rejected.
+Custom challenges (no template) used a generic instruction: *Analyze whether the image proves the task "{rule}" was completed.* Custom challenges are out of the first draft, so this instruction is not used. All prompts asked the model to be "strict but fair" and return `approved` plus a one-line reason. The rebuild's AI check must return the spec's three verdicts (likely okay / unsure / likely not okay), with unsure counting as rejected.
 
 ## Learn French: daily topics (30, cycling by day number)
 1. Introduce yourself and your family.

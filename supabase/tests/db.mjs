@@ -142,8 +142,9 @@ export async function freshDb() {
     async createChallenge({ creator, stake, title = 'Read 20 minutes', status = 'open', fee = 10 }) {
       const started = status !== 'draft' && status !== 'open';
       const row = await db.one(
-        `insert into challenges (creator_id, title, stake, app_fee_percent, status, start_date)
-         values ($1, $2, $3, $4, $5, case when $6 then current_date - 1 else current_date + 1 end) returning id`,
+        `insert into challenges (creator_id, template, title, stake, app_fee_percent, status, start_date)
+         values ($1, 'read_a_book', $2, $3, $4, $5, case when $6 then current_date - 1 else current_date + 1 end)
+         returning id`,
         [creator, title, stake, fee, status, started],
       );
       return row.id;

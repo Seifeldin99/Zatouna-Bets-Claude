@@ -40,4 +40,4 @@ Source: the owner's Gemini (AI Studio) build, 2026-10-18. Screenshots in this fo
 - Proof photos are never shown to other members; friends see only accepted / missed per day (story 3.2).
 - Every rejected check-in shows **Retry** and **Referee** buttons (story 6.2); the Gemini app only had a message.
 - Results screen shows who finished, who forfeited, the **10% app fee**, and each payout (story 8.4).
-- Challenge creation uses the spec's fields (title, rule, schedule, length, stake, misses allowed). The Gemini app's preset list (Read a Book, Sunshine, Journaling, Eating Fruits, Learn French, Workout, Pet Cat) is kept as **templates** that pre-fill those fields, and its per-preset AI instructions seed the AI check prompts.
+- Challenge creation uses the spec's fields (schedule, length, stake, misses allowed). The Gemini app's preset list (Read a Book, Sunshine, Journaling, Eating Fruits, Learn French, Workout, Pet Cat) is kept as **templates**; every challenge is made from one (no custom titles or rules in the first draft), and the per-preset AI instructions seed the AI check prompts.
