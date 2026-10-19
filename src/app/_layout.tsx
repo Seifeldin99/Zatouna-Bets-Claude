@@ -75,6 +75,10 @@ function RootNavigator() {
         screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
         <Stack.Protected guard={!!session}>
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="challenge/new" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="challenge/[id]/index" />
+          <Stack.Screen name="challenge/[id]/edit" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="join/[code]" />
         </Stack.Protected>
         <Stack.Protected guard={!session}>
           <Stack.Screen name="sign-in" />
