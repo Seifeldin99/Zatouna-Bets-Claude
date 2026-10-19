@@ -37,7 +37,7 @@ Zatouna lets you "bet on yourself": join a private challenge with friends, stake
 - **1.3** As a user, I want my balance and a history of every token change. *Done when:* each line shows date, amount and reason (e.g. "Stake: Read 20 min").
 
 ### 2. Private challenges
-- **2.1** As a creator, I want to set a title, the rule ("what counts"), how often (daily, or N times a week), a start date (today or later), a length (1 to 30 days), a stake, and how many misses are allowed. *Done when:* it's saved as **not started** (or **active** at once if it starts today) and only I can see it.
+- **2.1** As a creator, I want to pick one of the seven challenge templates (Read a Book, Workout, Sunshine, Journaling, Eating Fruits, Learn French, Pet Cat), which sets the title and the rule ("what counts"), then set how often (daily, or N times a week), a start date (today or later), a length (1 to 30 days), a stake, and how many misses are allowed. *Done when:* it's saved as **not started** (or **active** at once if it starts today) and only I can see it. Custom titles and rules are not in the first draft: every challenge comes from a template.
 - **2.2** As a creator, I want to edit or delete my challenge during its first day. *Done when:* from the second day, nothing about it can change. Deleting gives everyone their stake back.
 
 ### 3. Friends for each challenge
@@ -79,7 +79,7 @@ Zatouna lets you "bet on yourself": join a private challenge with friends, stake
 The goal is that testers will eventually buy tokens with real money, and the free admin gifts will stop. The data design leaves room for purchases and the app fee, so the code won't need rewriting. **This must not be built before a lawyer signs off.** A stake that can be lost, plus a house cut of the losses, is the textbook shape of gambling. Apple only allows real-money gaming from licensed operators, in the places they're licensed. Apple also says purchased credits may not expire, which conflicts with losing bought tokens. Google Play has similar rules. The first markets are the **US and Canada**. Both regulate this by state or province, so the lawyer has to check each one.
 
 ## Also not in the MVP
-Buying, cashing out or transferring tokens, public challenges, leaderboards, chat, video or gallery uploads, non-email logins, and web or desktop versions.
+Buying, cashing out or transferring tokens, custom challenges and rules (only the seven templates for now), public challenges, leaderboards, chat, video or gallery uploads, non-email logins, and web or desktop versions.
 
 ## Open questions for you
 None right now. Your answers so far are written into the stories above. We'll revisit stake size, retries and the grace period after testing.

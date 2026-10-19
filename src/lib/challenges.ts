@@ -9,14 +9,14 @@ export const MAX_MEMBERS = 10;
 export const MIN_LENGTH_DAYS = 1;
 export const MAX_LENGTH_DAYS = 30;
 export const MAX_START_DAYS_AHEAD = 90;
-export const TITLE_MAX = 80;
-export const RULE_MAX = 280;
 
 export type ChallengeStatus = 'draft' | 'open' | 'active' | 'refereeing' | 'settled';
 
 export type Challenge = {
   id: string;
   creator_id: string;
+  /** The template it was made from, e.g. "pet_cat". */
+  template: string;
   title: string;
   rule: string;
   times_per_week: number;
@@ -46,8 +46,8 @@ export type ChallengeDetails = {
 };
 
 export type ChallengeFields = {
-  title: string;
-  rule: string;
+  /** The template's key; the server sets the title and the rule from it. */
+  template: string;
   timesPerWeek: number;
   startDate: Ymd;
   lengthDays: number;
@@ -75,7 +75,7 @@ export type InvitePreview = {
 };
 
 const challengeColumns =
-  'id, creator_id, title, rule, times_per_week, start_date, length_days, stake, misses_allowed, ' +
+  'id, creator_id, template, title, rule, times_per_week, start_date, length_days, stake, misses_allowed, ' +
   'status, time_zone, created_at, members:challenge_members(count)';
 
 type ChallengeRow = Omit<Challenge, 'member_count'> & { members: { count: number }[] };
@@ -132,8 +132,7 @@ export async function getChallenge(id: string): Promise<ChallengeDetails> {
 /** Creates the challenge and places the creator's stake. Returns its id. */
 export async function createChallenge(f: ChallengeFields, timeZone: string): Promise<string> {
   const { data, error } = await supabase.rpc('create_challenge', {
-    p_title: f.title,
-    p_rule: f.rule,
+    p_template: f.template,
     p_times_per_week: f.timesPerWeek,
     p_start_date: f.startDate,
     p_length_days: f.lengthDays,
@@ -145,11 +144,10 @@ export async function createChallenge(f: ChallengeFields, timeZone: string): Pro
   return data as string;
 }
 
-export async function updateChallenge(id: string, f: Omit<ChallengeFields, 'stake'>): Promise<void> {
+/** Changes the schedule during the first day. The template, title, rule and stake never change. */
+export async function updateChallenge(id: string, f: Omit<ChallengeFields, 'stake' | 'template'>): Promise<void> {
   const { error } = await supabase.rpc('update_challenge', {
     p_id: id,
-    p_title: f.title,
-    p_rule: f.rule,
     p_times_per_week: f.timesPerWeek,
     p_start_date: f.startDate,
     p_length_days: f.lengthDays,

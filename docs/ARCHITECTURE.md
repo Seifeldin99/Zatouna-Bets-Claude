@@ -27,7 +27,8 @@ A **table** is like a spreadsheet tab; each row is one record.
 | Table | One row is… | Key fields |
 |---|---|---|
 | `profiles` | a user | name, time zone, reminder time, **role** (member / support / admin) |
-| `challenges` | a challenge | creator, title, rule, schedule, start date, length, stake, misses allowed, **app fee %** (copied in at creation), **status** |
+| `challenge_templates` | the seven preset challenges, changed only by migrations | key, title, goal, recommendation, rule |
+| `challenges` | a challenge, always made from a template | creator, template, title and rule (copied from the template), schedule, start date, length, stake, misses allowed, **app fee %** (copied in at creation), **status** |
 | `challenge_members` | one person in one challenge | challenge, user, joined at, **time zone** (fixed at joining), **result** (in progress / finished / forfeited) |
 | `invites` | an invite code | challenge, code, expires at |
 | `app_settings` | one row of switches, server only | welcome tokens for new accounts |

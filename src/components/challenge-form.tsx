@@ -8,16 +8,16 @@ import {
   MAX_LENGTH_DAYS,
   MAX_START_DAYS_AHEAD,
   MIN_LENGTH_DAYS,
-  RULE_MAX,
-  TITLE_MAX,
   howOften,
 } from '@/lib/challenges';
 import { addDays, dayCount, daysFromToday, formatDate, lastDay, relativeDay, todayYmd } from '@/lib/dates';
-import { templates } from '@/lib/templates';
+import { type Template } from '@/lib/templates';
 import { colors, fonts } from '@/theme';
 
 type Props = {
-  /** Set when editing; the stake is then locked, and the start too once it has begun. */
+  /** The templates to pick from when creating. */
+  templates?: Template[];
+  /** Set when editing; the template and stake are then locked, and the start too once it has begun. */
   initial?: Challenge;
   /** The creator's tokens, shown under the stake. */
   balance?: number | null;
@@ -25,12 +25,10 @@ type Props = {
   onSubmit: (fields: ChallengeFields) => Promise<void>;
 };
 
-export function ChallengeForm({ initial, balance, submitLabel, onSubmit }: Props) {
+export function ChallengeForm({ templates = [], initial, balance, submitLabel, onSubmit }: Props) {
   const editing = initial !== undefined;
   const startLocked = editing && initial.status === 'active';
-  const [template, setTemplate] = useState<number | null>(null);
-  const [title, setTitle] = useState(initial?.title ?? '');
-  const [rule, setRule] = useState(initial?.rule ?? '');
+  const [template, setTemplate] = useState<Template | null>(null);
   const [timesPerWeek, setTimesPerWeek] = useState(initial?.times_per_week ?? 7);
   const [startIn, setStartIn] = useState(initial ? Math.max(0, daysFromToday(initial.start_date)) : 0);
   const [lengthDays, setLengthDays] = useState(initial?.length_days ?? 7);
@@ -43,22 +41,14 @@ export function ChallengeForm({ initial, balance, submitLabel, onSubmit }: Props
   const endDate = lastDay(startDate, lengthDays);
   const stake = editing ? initial.stake : Number.parseInt(stakeText, 10);
 
-  function pickTemplate(index: number | null) {
-    setTemplate(index);
-    if (index !== null) {
-      setTitle(templates[index].name);
-      setRule(templates[index].rule);
-    }
-  }
-
   function changeLength(next: number) {
     setLengthDays(next);
     setMissesAllowed((m) => Math.min(m, next - 1));
   }
 
   function validate(): string | null {
-    if (!title.trim()) return 'Give the challenge a title.';
     if (!editing) {
+      if (!template) return 'Pick a challenge.';
       if (!Number.isInteger(stake) || stake < 1) return 'The stake must be at least 1 token.';
       if (balance != null && stake > balance) {
         return `You have ${balance} tokens, so the stake can be ${balance} at most.`;
@@ -74,8 +64,7 @@ export function ChallengeForm({ initial, balance, submitLabel, onSubmit }: Props
     setBusy(true);
     try {
       await onSubmit({
-        title: title.trim(),
-        rule: rule.trim(),
+        template: editing ? initial.template : (template?.key ?? ''),
         timesPerWeek,
         startDate,
         lengthDays,
@@ -89,49 +78,39 @@ export function ChallengeForm({ initial, balance, submitLabel, onSubmit }: Props
     }
   }
 
-  const picked = template === null ? null : templates[template];
   const startLabel = `${relativeDay(startDate)} · ${formatDate(startDate)}`;
   const runs =
     lengthDays === 1 ? `Runs on ${formatDate(startDate)}.` : `Runs ${formatDate(startDate)} to ${formatDate(endDate)}.`;
 
   return (
     <View style={styles.form}>
-      {!editing && (
+      {editing ? (
+        <View>
+          <InfoRow label="Challenge" value={initial.title} />
+          <InfoBox sections={[{ label: 'What counts', text: initial.rule }]} />
+          <Hint>{"The challenge and its rule can't change. Delete it and create a new one instead."}</Hint>
+        </View>
+      ) : (
         <View style={styles.templates}>
-          <SectionLabel>Start from a template</SectionLabel>
+          <SectionLabel>Pick a challenge</SectionLabel>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-            <Chip label="Custom" selected={template === null} onPress={() => pickTemplate(null)} />
-            {templates.map((t, i) => (
-              <Chip key={t.name} label={t.name} selected={template === i} onPress={() => pickTemplate(i)} />
+            {templates.map((t) => (
+              <Chip key={t.key} label={t.title} selected={template?.key === t.key} onPress={() => setTemplate(t)} />
             ))}
           </ScrollView>
-          {picked && (
+          {template ? (
             <InfoBox
               sections={[
-                { label: 'Goal', text: picked.goal },
-                { label: 'Recommendation', text: picked.recommendation },
+                { label: 'Goal', text: template.goal },
+                { label: 'Recommendation', text: template.recommendation },
+                { label: 'What counts', text: template.rule },
               ]}
             />
+          ) : (
+            <Hint>{"Every challenge starts from one of these. The rule is what everyone's photo is checked against."}</Hint>
           )}
         </View>
       )}
-
-      <TextField
-        label="Title"
-        value={title}
-        onChangeText={setTitle}
-        placeholder="e.g. Read 20 minutes"
-        maxLength={TITLE_MAX}
-      />
-      <TextField
-        label="What counts"
-        value={rule}
-        onChangeText={setRule}
-        placeholder="e.g. A photo of the open book, every day"
-        maxLength={RULE_MAX}
-        multiline
-        hint="The rule everyone's photo is checked against."
-      />
 
       <Stepper
         label="How often"
