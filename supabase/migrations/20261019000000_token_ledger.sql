@@ -362,10 +362,18 @@ $$;
 
 create function public.ledger_post(p_transaction_id uuid, p_account_id uuid, p_amount bigint)
   returns void
-  language sql set search_path = ''
+  language plpgsql set search_path = ''
 as $$
+begin
+  -- Take the account lock used by the overdraft check before the entry's
+  -- foreign key takes a weaker one; otherwise two spends from one wallet
+  -- at the same moment deadlock instead of running one after the other.
+  if p_amount < 0 then
+    perform 1 from public.ledger_accounts where id = p_account_id for update;
+  end if;
   insert into public.ledger_entries (transaction_id, account_id, amount)
   values (p_transaction_id, p_account_id, p_amount);
+end;
 $$;
 
 -- ---------------------------------------------------------------------------
