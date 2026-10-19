@@ -29,6 +29,7 @@ Zatouna is a habit app where friends stake tokens on finishing challenges. Expo 
 
 ## Before opening a pull request
 - `npm run check` (typecheck and lint) passes.
+- `npm run test:db` (database and ledger tests) passes. It needs a local PostgreSQL; it refuses to run as root, so in a root container run it as the `postgres` user.
 - For app changes, the Android bundle builds: `npx expo export --platform android` with the two `EXPO_PUBLIC_*` variables set.
 - Android test build: `npx eas-cli@latest build --profile preview --platform android` produces an install link (APK, internal distribution).
 
@@ -36,3 +37,4 @@ Zatouna is a habit app where friends stake tokens on finishing challenges. Expo 
 - `src/app/`: screens (Expo Router). `(tabs)/` holds Home, Bets and Settings; `sign-in.tsx` is shown when signed out.
 - `src/lib/`: Supabase client and auth state.
 - `src/components/ui.tsx`: shared building blocks (Screen, Card, Button, TextField, TokenBadge).
+- `supabase/migrations/`: database changes. `supabase/tests/`: database tests (Node test runner against a throwaway local Postgres with a small Supabase stand-in).
