@@ -33,7 +33,7 @@ Zatouna lets you "bet on yourself": join a private challenge with friends, stake
 
 ### 1. Account and tokens
 - **1.1** As a new user, I want to sign up with email. *Done when:* I can sign up, log in and log out.
-- **1.2** As the admin, I want to give any tester any number of tokens, with a note. *Done when:* the tokens appear in their balance at once and the gift shows in their history. New users start at 0.
+- **1.2** As the admin, I want to give any tester any number of tokens, with a note. *Done when:* the tokens appear in their balance at once and the gift shows in their history. During testing, every new account starts with **1,000 welcome tokens** (a server setting the admin can turn off); after testing, new users start at 0.
 - **1.3** As a user, I want my balance and a history of every token change. *Done when:* each line shows date, amount and reason (e.g. "Stake: Read 20 min").
 
 ### 2. Private challenges

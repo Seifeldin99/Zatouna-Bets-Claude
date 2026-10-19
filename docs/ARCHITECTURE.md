@@ -30,6 +30,7 @@ A **table** is like a spreadsheet tab; each row is one record.
 | `challenges` | a challenge | creator, title, rule, schedule, start date, length, stake, misses allowed, **app fee %** (copied in at creation), **status** |
 | `challenge_members` | one person in one challenge | challenge, user, joined at, **time zone** (fixed at joining), **result** (in progress / finished / forfeited) |
 | `invites` | an invite code | challenge, code, expires at |
+| `app_settings` | one row of switches, server only | welcome tokens for new accounts |
 | `check_ins` | one photo and note (a retry is a new row) | member, the day it counts for, attempt number, photo path, note, **state** (pending / accepted / rejected) |
 | `ai_checks` | the AI's verdict on a check-in | check-in, label, one-line reason, model name, time taken |
 | `referee_cases` | a request for support to overrule the AI | check-in, who asked, explanation, support's decision, reason, decided by |
