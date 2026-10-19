@@ -43,3 +43,6 @@ yarn-error.*
 # local env files (secrets never go in git)
 .env
 .env*.local
+
+# Supabase CLI scratch files
+supabase/.temp/

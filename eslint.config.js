@@ -2,4 +2,5 @@
 const { defineConfig } = require('eslint/config');
 const expoConfig = require('eslint-config-expo/flat');
 
-module.exports = defineConfig([expoConfig, { ignores: ['dist/*'] }]);
+// Edge Functions run on Deno, not in the app; Deno checks them (`deno check`).
+module.exports = defineConfig([expoConfig, { ignores: ['dist/*', 'supabase/functions/*'] }]);
