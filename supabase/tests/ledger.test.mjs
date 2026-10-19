@@ -69,6 +69,64 @@ describe('accounts and gifts', () => {
     assert.equal(await db.balanceOf(id), 0);
   });
 
+  test('a new account starts with the welcome tokens while the setting is on', async () => {
+    await db.owner.query(`update app_settings set welcome_tokens = 1000`);
+    const ana = await db.createUser('Ana');
+    assert.equal(await db.balanceOf(ana), 1000);
+    assert.equal(await db.systemBalance('admin_gifts'), -1000);
+    const history = await db.as(ana, async (c) =>
+      (await c.query(`select kind, note, created_by, challenge_id from ledger_transactions`)).rows,
+    );
+    assert.deepEqual(history, [
+      { kind: 'gift', note: 'Welcome tokens for testing', created_by: null, challenge_id: null },
+    ]);
+
+    // Also when the auth service itself inserts the user, as on Supabase.
+    await db.owner.query('begin');
+    await db.owner.query('set local role supabase_auth_admin');
+    const { id } = (
+      await db.owner.query(
+        `insert into auth.users (email, raw_user_meta_data) values ('ben@test.local', '{"display_name": "Ben"}') returning id`,
+      )
+    ).rows[0];
+    await db.owner.query('commit');
+    assert.equal(await db.balanceOf(id), 1000);
+
+    // Switched off, new accounts start empty again; existing ones keep theirs.
+    await db.owner.query(`update app_settings set welcome_tokens = 0`);
+    const carl = await db.createUser('Carl');
+    assert.equal(await db.balanceOf(carl), 0);
+    assert.equal(await db.balanceOf(ana), 1000);
+  });
+
+  test('the welcome amount is set to 1,000 by the migration itself', async () => {
+    // The test template switches it off; the migration's own value is what
+    // the live database gets.
+    const { value } = await db.one(
+      `select regexp_replace(pg_get_expr(d.adbin, d.adrelid), '[^0-9]', '', 'g') as value
+       from pg_attrdef d join pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
+       where d.adrelid = 'app_settings'::regclass and a.attname = 'welcome_tokens'`,
+    );
+    assert.equal(value, '0', 'the column default is 0 (off)');
+    const { lines } = await db.one(
+      `select count(*)::int as lines from pg_proc where proname = 'handle_new_user' and prosrc like '%welcome_tokens%'`,
+    );
+    assert.equal(lines, 1, 'sign-up reads the setting');
+  });
+
+  test('the app can neither read nor change the settings', async () => {
+    const ana = await db.createUser('Ana');
+    await assert.rejects(db.as(ana, (c) => c.query(`select * from app_settings`)), /permission denied/);
+    await assert.rejects(
+      db.as(ana, (c) => c.query(`update app_settings set welcome_tokens = 999999`)),
+      /permission denied/,
+    );
+    await db.owner.query('begin');
+    await db.owner.query('set local role anon');
+    await assert.rejects(db.owner.query(`select * from app_settings`), /permission denied/);
+    await db.owner.query('rollback');
+  });
+
   test('a very long sign-up name is cut instead of breaking sign-up', async () => {
     const id = await db.createUser('x'.repeat(200));
     const { display_name } = await db.one(`select display_name from profiles where id = $1`, [id]);

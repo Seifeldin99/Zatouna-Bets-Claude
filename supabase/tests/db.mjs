@@ -52,6 +52,9 @@ export async function startServer() {
   for (const file of readdirSync(migrationsDir).filter((f) => f.endsWith('.sql')).sort()) {
     await t.query(readFileSync(join(migrationsDir, file), 'utf8'));
   }
+  // Tests start every account at 0 so their balance arithmetic stays readable;
+  // the welcome gift has tests of its own that switch it back on.
+  await t.query(`update app_settings set welcome_tokens = 0`);
   await t.end();
 
   server = { dir, proc, config, admin };
