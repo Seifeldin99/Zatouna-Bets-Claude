@@ -207,7 +207,7 @@ export function todayLine(status: TodayStatus): { text: string; tone: 'accent' |
     case 'rejected':
       return { text: 'Not accepted: try again', tone: 'danger' };
     case 'out':
-      return { text: 'Out: too many misses', tone: 'danger' };
+      return { text: 'Out: your stake stays in the pool', tone: 'danger' };
     default:
       return null;
   }

@@ -31,6 +31,7 @@ import {
   inviteMessage,
   isFirstDayOpen,
   leaveChallenge,
+  quitChallenge,
   resultLabel,
   statusLabel,
 } from '@/lib/challenges';
@@ -94,12 +95,12 @@ export default function ChallengeScreen() {
       <ScreenHeader onBack={() => goBack()} />
       {error && <ErrorText>{error}</ErrorText>}
       {loading && <Loading />}
-      {data && <Details page={data} />}
+      {data && <Details page={data} reload={reload} />}
     </Screen>
   );
 }
 
-function Details({ page }: { page: Page }) {
+function Details({ page, reload }: { page: Page; reload: () => Promise<void> }) {
   const { details, progress, latest, results } = page;
   const { challenge: c, members, inviteCode } = details;
   const { session } = useAuth();
@@ -109,21 +110,27 @@ function Details({ page }: { page: Page }) {
   const isMember = members.some((m) => m.user_id === me);
   const mine = progress?.members.find((m) => m.mine) ?? null;
   const progressOf = (userId: string) => progress?.members.find((m) => m.user_id === userId) ?? null;
+  const quitOf = (userId: string) => results?.members.find((m) => m.user_id === userId)?.quit ?? false;
   // During the first day people can still join or leave, and the creator can edit or delete.
   const open = isFirstDayOpen(c);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function run(action: () => Promise<void>) {
+  /** Runs an action; afterwards goes back to the list, or stays and reloads this screen. */
+  async function run(action: () => Promise<void>, then: 'back' | 'stay' = 'back') {
     setBusy(true);
     setActionError(null);
     try {
       await action();
-      goBack();
+      if (then === 'back') {
+        goBack();
+        return;
+      }
+      await reload();
     } catch (e) {
       setActionError(e instanceof Error ? e.message : String(e));
-      setBusy(false);
     }
+    setBusy(false);
   }
 
   function confirmDelete() {
@@ -144,6 +151,20 @@ function Details({ page }: { page: Page }) {
       { text: 'Stay', style: 'cancel' },
       { text: 'Leave', style: 'destructive', onPress: () => run(() => leaveChallenge(c.id)) },
     ]);
+  }
+
+  // From the second day on a member can quit, which forfeits the stake (product story 4.3).
+  const canQuit = !!mine && c.status === 'active' && !open && mine.result === 'in_progress' && !mine.out;
+
+  function confirmQuit() {
+    Alert.alert(
+      'Quit this challenge?',
+      `You lose your ${c.stake} tokens: they stay in the pool for the friends who finish. This can't be undone.`,
+      [
+        { text: 'Stay in', style: 'cancel' },
+        { text: 'Quit', style: 'destructive', onPress: () => run(() => quitChallenge(c.id), 'stay') },
+      ],
+    );
   }
 
   return (
@@ -210,7 +231,7 @@ function Details({ page }: { page: Page }) {
                       {resultLabel(r.result, r.quit)}
                     </Text>
                   ) : p?.out ? (
-                    <Text style={[styles.memberRole, styles.memberOut]}>Out</Text>
+                    <Text style={[styles.memberRole, styles.memberOut]}>{quitOf(m.user_id) ? 'Quit' : 'Out'}</Text>
                   ) : (
                     m.user_id === c.creator_id && <Text style={styles.memberRole}>Creator</Text>
                   )}
@@ -220,7 +241,7 @@ function Details({ page }: { page: Page }) {
                   <Text style={styles.memberMeta}>
                     {r
                       ? `${dayCount(p.days_done)} done · ${r.payout != null ? `received ${r.payout} tokens` : 'stake lost'}`
-                      : `${dayCount(p.days_done)} done · ${p.out ? 'too many misses' : missesLeftLabel(p.misses_left)}`}
+                      : `${dayCount(p.days_done)} done · ${p.out ? (quitOf(m.user_id) ? 'quit' : 'too many misses') : missesLeftLabel(p.misses_left)}`}
                   </Text>
                 )}
               </View>
@@ -252,6 +273,14 @@ function Details({ page }: { page: Page }) {
           <Hint>{`You can leave and get your stake back until the end of ${formatDate(c.start_date)}, the first day.`}</Hint>
         </View>
       )}
+
+      {canQuit && (
+        <View style={styles.section}>
+          {actionError && <ErrorText>{actionError}</ErrorText>}
+          <Button label="Quit challenge" variant="outline" onPress={confirmQuit} loading={busy} />
+          <Hint>{`Quitting forfeits your stake: your ${c.stake} tokens stay in the pool for the friends who finish.`}</Hint>
+        </View>
+      )}
     </>
   );
 }
@@ -278,8 +307,17 @@ function TodayCard({
   const callHoursMs = results ? new Date(results.calls_close_at).getTime() - new Date(results.ends_at).getTime() : 0;
   const myCallsCloseAt = fromYmd(addDays(last, 1)).getTime() + callHoursMs;
 
+  const quit = results?.members.find((m) => m.mine)?.quit ?? false;
+
   let body: ReactNode;
-  if (mine.out || mine.result === 'forfeited') {
+  if (quit) {
+    body = (
+      <>
+        <Text style={[styles.todayTitle, styles.todayTitleRed]}>You quit this challenge</Text>
+        <Text style={styles.todayText}>Your stake stays in the pool for the friends who finish.</Text>
+      </>
+    );
+  } else if (mine.out || mine.result === 'forfeited') {
     body = (
       <>
         <Text style={[styles.todayTitle, styles.todayTitleRed]}>{"You're out of this challenge"}</Text>
