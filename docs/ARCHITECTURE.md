@@ -34,7 +34,7 @@ A **table** is like a spreadsheet tab; each row is one record.
 | `app_settings` | one row of switches, server only | welcome tokens for new accounts |
 | `check_ins` | one photo and note (a retry is a new row) | member, the day it counts for, attempt number, photo path, note, **state** (pending / accepted / rejected) |
 | `ai_checks` | the AI's verdict on a check-in | check-in, label (likely okay / unsure / likely not okay / failed), one-line reason, model name, time taken |
-| `referee_cases` | a request for support to overrule the AI | check-in, who asked, explanation, support's decision, reason, decided by |
+| `referee_cases` | a request for support to overrule the AI | check-in, who asked, the day, explanation, decision (open / accepted / rejected), reason, decided by (empty for the 48-hour rule), decided at |
 | `push_tokens` | a phone's notification address | user, token |
 | `ledger_accounts`, `ledger_transactions`, `ledger_entries` | the token ledger | see below |
 
@@ -85,7 +85,7 @@ Step 5 of the plan builds this first, with automated tests, including "settling 
 3. The app calls the **`judge-check-in` Edge Function**. It checks that the caller owns the pending check-in, downloads the photo, and sends it with the note, the challenge's rule and the template's extra guidance (`challenge_templates.ai_instruction`) to **Claude**, asking for one of three labels and a one-line reason.
 4. The function records the verdict through `finish_check_in` (server only). *Likely okay* sets the check-in to *accepted*; *likely not okay* and *unsure* set it to *rejected*. The AI label is stored too, so we can see how often it was unsure.
 5. If the AI errors, refuses, or takes longer than 45 seconds, if the photo never arrived, or if the key is missing, the verdict is *failed* and the check-in is *rejected* with a plain reason; the member can retry. A pending check-in that never got a verdict (the app closed) is written off the same way after three minutes, by a scheduled job and by the member's next attempt. The AI's API key (`ANTHROPIC_API_KEY`) and the model name (`AI_MODEL`, default `claude-haiku-5-5`, the cheapest current model, chosen for testing) live only in the function's secrets.
-6. On a rejected check-in, the member can **retry** (a new check-in row, as many as they like before their midnight). The **referee case** (within 24 hours) is the next step to build; support's decision will overwrite the state and be recorded with who decided and why.
+6. On a rejected check-in, the member can **retry** (a new check-in row, as many as they like before their midnight) or **call the referee** (`open_referee_case`): once per check-in, within 24 hours of the verdict, with a short explanation. While the case is open, that day is neither done nor missed. Support (any profile with the `support` or `admin` role) sees the queue (`referee_queue`) with the photo, note, rule, AI reason and explanation, and decides with a reason (`decide_referee_case`). Accepting sets the check-in to *accepted*, the one exception to "a verdict is final". The decision is final. A case nobody decided within 48 hours of the end of the challenge counts as accepted (an hourly job).
 
 Each retry is a new AI check, which costs a little and gives a cheater another try at fooling the AI. The attempt number is stored, so support can see it on a referee case, and after testing we'll check whether a daily limit is needed.
 
@@ -109,7 +109,7 @@ Supabase uses **Row Level Security (RLS)**: rules stored in the database that de
 | Your profile | you, and members of your challenges (name only) | you |
 | A challenge | its members, and anyone holding a valid invite (details only) | its creator, before it opens |
 | Check-ins and photos | the author always (rows and photos); other members only see whether a day is done or missed, through `challenge_progress` | the author creates (through `begin_check_in` and one upload); the verdict is written by the server only; nothing changes after |
-| Referee cases | the check-in's author, and support | the author opens one; support decides |
+| Referee cases | the check-in's author, and support (who also sees that check-in's photo) | the author opens one (`open_referee_case`); support decides (`decide_referee_case`); nothing changes after |
 | Token gifts | the receiver, and the admin | the admin only (through a server function) |
 | Ledger | you see your own wallet and your challenges' pools | server functions only |
 

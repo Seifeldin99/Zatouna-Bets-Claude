@@ -1,14 +1,25 @@
 import Constants from 'expo-constants';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { Button, Card, Screen, SectionLabel, Title } from '@/components/ui';
+import { Button, Card, Hint, Screen, SectionLabel, Title } from '@/components/ui';
 import { displayNameOf, useAuth } from '@/lib/auth';
+import { amSupport, refereeQueue } from '@/lib/referee';
 import { supabase } from '@/lib/supabase';
+import { useLoad } from '@/lib/use-load';
 import { colors, fonts } from '@/theme';
+
+/** Support (the admin during testing) also sees how many referee cases wait. */
+async function loadSupport() {
+  const support = await amSupport();
+  const waiting = support ? (await refereeQueue()).filter((c) => c.decision === 'open').length : 0;
+  return { support, waiting };
+}
 
 export default function SettingsScreen() {
   const { session } = useAuth();
+  const { data: support } = useLoad(loadSupport);
   const [signingOut, setSigningOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,6 +45,18 @@ export default function SettingsScreen() {
           <Text style={styles.email}>{session?.user.email}</Text>
         </Card>
       </View>
+
+      {support?.support && (
+        <View style={styles.section}>
+          <SectionLabel>Referee</SectionLabel>
+          <Button
+            label={support.waiting > 0 ? `Referee queue (${support.waiting} waiting)` : 'Referee queue'}
+            variant="secondary"
+            onPress={() => router.push('/referee')}
+          />
+          <Hint>Members who think the AI got it wrong send their check-in here. You decide, with a reason.</Hint>
+        </View>
+      )}
 
       {error && <Text style={styles.error}>{error}</Text>}
       <Button label="Sign out" variant="outline" onPress={signOut} loading={signingOut} />

@@ -12,8 +12,11 @@ export const NOTE_MAX = 280;
 /** The photo is shrunk so its longer side is at most this many pixels before upload. */
 const PHOTO_MAX_SIDE = 1280;
 
-/** One day of one member, as friends see it. Only your own days read "checking" or "rejected". */
-export type DayStatus = 'done' | 'open' | 'none' | 'future' | 'checking' | 'rejected';
+/**
+ * One day of one member, as friends see it. Only your own days read "checking"
+ * or "rejected"; "referee" (an open case) shows to friends once the day is over.
+ */
+export type DayStatus = 'done' | 'open' | 'none' | 'future' | 'checking' | 'rejected' | 'referee';
 
 export type Week = {
   starts: Ymd;
@@ -43,7 +46,7 @@ export type MemberProgress = {
 
 export type Progress = { challenge_id: string; members: MemberProgress[] };
 
-export type TodayStatus = 'out' | 'not_started' | 'ended' | 'done' | 'checking' | 'rejected' | 'open';
+export type TodayStatus = 'out' | 'not_started' | 'ended' | 'done' | 'checking' | 'referee' | 'rejected' | 'open';
 
 export type Today = { challenge_id: string; status: TodayStatus; misses_left: number; week: Week | null };
 
@@ -57,10 +60,16 @@ export type CheckIn = {
   note: string;
   state: CheckInState;
   created_at: string;
+  decided_at: string | null;
   verdict: { label: AiLabel; reason: string } | null;
+  /** Your referee case on this attempt, if you called one. */
+  referee: { id: string; decision: 'open' | 'accepted' | 'rejected'; reason: string; explanation: string; created_at: string } | null;
 };
 
 export type Verdict = { state: CheckInState; label: AiLabel | null; reason: string };
+
+/** The verdict plus the check-in it belongs to, so a rejection can go to the referee. */
+export type Outcome = Verdict & { check_in_id: string };
 
 export type Photo = { uri: string; width: number; height: number };
 
@@ -82,7 +91,9 @@ export async function myToday(): Promise<Today[]> {
 export async function latestCheckIn(challengeId: string, day: Ymd): Promise<CheckIn | null> {
   const { data, error } = await supabase
     .from('check_ins')
-    .select('id, day, attempt, note, state, created_at, verdict:ai_checks(label, reason)')
+    .select(
+      'id, day, attempt, note, state, created_at, decided_at, verdict:ai_checks(label, reason), referee:referee_cases(id, decision, reason, explanation, created_at)',
+    )
     .eq('challenge_id', challengeId)
     .eq('day', day)
     .order('attempt', { ascending: false })
@@ -91,8 +102,12 @@ export async function latestCheckIn(challengeId: string, day: Ymd): Promise<Chec
   if (error) throw toError(error);
   if (!data) return null;
   // PostgREST returns a one-to-one embed as an object, but types it loosely.
-  const verdict = data.verdict as unknown as CheckIn['verdict'] | CheckIn['verdict'][];
-  return { ...data, verdict: Array.isArray(verdict) ? (verdict[0] ?? null) : verdict };
+  return { ...data, verdict: one(data.verdict), referee: one(data.referee) };
+}
+
+function one<T>(embed: unknown): T | null {
+  if (Array.isArray(embed)) return (embed[0] as T) ?? null;
+  return (embed as T) ?? null;
 }
 
 /** Shrinks and re-encodes the camera photo so the upload stays small. */
@@ -154,7 +169,7 @@ export async function submitCheckIn(
   photo: Photo,
   note: string,
   onStage: (stage: SubmitStage) => void = () => {},
-): Promise<Verdict> {
+): Promise<Outcome> {
   onStage('preparing');
   const uri = await shrink(photo);
   const slot = await beginCheckIn(challengeId, note.trim());
@@ -167,7 +182,8 @@ export async function submitCheckIn(
     throw e;
   }
   onStage('checking');
-  return judge(slot.id);
+  const verdict = await judge(slot.id);
+  return { ...verdict, check_in_id: slot.id };
 }
 
 /** One line for a challenge card: where you stand today. Null when there is nothing to say. */
@@ -179,6 +195,8 @@ export function todayLine(status: TodayStatus): { text: string; tone: 'accent' |
       return { text: 'Done for today', tone: 'muted' };
     case 'checking':
       return { text: 'Your photo is being checked', tone: 'muted' };
+    case 'referee':
+      return { text: 'Waiting for the referee', tone: 'muted' };
     case 'rejected':
       return { text: 'Not accepted: try again', tone: 'danger' };
     case 'out':

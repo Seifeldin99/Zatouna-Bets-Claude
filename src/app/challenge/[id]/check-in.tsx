@@ -1,11 +1,11 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Button, Card, ErrorText, Hint, InfoBox, Loading, Screen, ScreenHeader, TextField } from '@/components/ui';
 import { getChallenge } from '@/lib/challenges';
-import { NOTE_MAX, type Photo, type SubmitStage, type Verdict, submitCheckIn } from '@/lib/check-ins';
+import { NOTE_MAX, type Outcome, type Photo, type SubmitStage, submitCheckIn } from '@/lib/check-ins';
 import { goBack } from '@/lib/navigation';
 import { useLoad } from '@/lib/use-load';
 import { colors, fonts, radius } from '@/theme';
@@ -14,7 +14,7 @@ type Step =
   | { kind: 'camera' }
   | { kind: 'review'; photo: Photo }
   | { kind: 'sending'; photo: Photo; stage: SubmitStage }
-  | { kind: 'result'; verdict: Verdict }
+  | { kind: 'result'; verdict: Outcome }
   | { kind: 'failed'; photo: Photo; message: string };
 
 const stageTitles: Record<SubmitStage, string> = {
@@ -95,9 +95,14 @@ export default function CheckInScreen() {
             <Text style={styles.reason}>{step.verdict.reason}</Text>
           </Card>
           <Button label="Retry with a new photo" onPress={() => setStep({ kind: 'camera' })} />
+          <Button
+            label="Call the referee"
+            variant="secondary"
+            onPress={() => router.replace(`/challenge/${id}/referee?checkIn=${step.verdict.check_in_id}`)}
+          />
           <Hint>
-            You can retry as often as you like until midnight. Think the AI got it wrong? Calling the referee comes
-            in the next update.
+            You can retry as often as you like until midnight. Think the AI got it wrong? The referee looks at your
+            photo and decides; until then the day is not counted as missed.
           </Hint>
           <Button label="Close" variant="secondary" onPress={back} />
         </>

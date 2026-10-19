@@ -43,6 +43,7 @@ import {
 } from '@/lib/check-ins';
 import { dayCount, formatDate, lastDay } from '@/lib/dates';
 import { goBack } from '@/lib/navigation';
+import { canCallReferee, decisionLabel } from '@/lib/referee';
 import { useLoad } from '@/lib/use-load';
 import { colors, fonts } from '@/theme';
 
@@ -57,7 +58,7 @@ async function loadPage(id: string): Promise<Page> {
   const mine = progress.members.find((m) => m.mine);
   const todayStatus = mine?.days.find((d) => d.day === mine.today)?.status;
   const latest =
-    mine && (todayStatus === 'done' || todayStatus === 'rejected' || todayStatus === 'checking')
+    mine && todayStatus && todayStatus !== 'open' && todayStatus !== 'none' && todayStatus !== 'future'
       ? await latestCheckIn(id, mine.today)
       : null;
   return { details, progress, latest };
@@ -249,10 +250,28 @@ function TodayCard({ c, mine, latest }: { c: Challenge; mine: MemberProgress; la
   } else if (mine.today > last) {
     body = <Text style={styles.todayText}>All the days are over. The results come with settlement, in a later update.</Text>;
   } else if (status === 'done') {
+    const byReferee = latest?.referee?.decision === 'accepted';
     body = (
       <>
         <Text style={styles.todayTitle}>Done for today</Text>
-        {reason ? <Text style={styles.todayText}>{reason}</Text> : null}
+        {byReferee ? (
+          <Text style={styles.todayText}>{`Referee accepted: ${latest?.referee?.reason}`}</Text>
+        ) : reason ? (
+          <Text style={styles.todayText}>{reason}</Text>
+        ) : null}
+      </>
+    );
+  } else if (status === 'referee') {
+    body = (
+      <>
+        <Text style={styles.todayTitle}>Waiting for the referee</Text>
+        <Text style={styles.todayText}>
+          {latest?.referee?.explanation
+            ? `You wrote: ${latest.referee.explanation}`
+            : 'The referee is looking at your photo.'}
+        </Text>
+        <Text style={styles.todayMeta}>Until the decision, today is not counted as missed. You can still retry.</Text>
+        <Button label="Try again" variant="secondary" onPress={checkIn} />
       </>
     );
   } else if (status === 'checking') {
@@ -263,11 +282,24 @@ function TodayCard({ c, mine, latest }: { c: Challenge; mine: MemberProgress; la
       </>
     );
   } else if (status === 'rejected') {
+    const decided = latest?.referee && latest.referee.decision !== 'open' ? latest.referee : null;
+    const mayCallReferee = !!latest && !latest.referee && canCallReferee(latest.decided_at);
     body = (
       <>
         <Text style={[styles.todayTitle, styles.todayTitleRed]}>Not accepted</Text>
-        {reason ? <Text style={styles.todayText}>{reason}</Text> : null}
+        {decided ? (
+          <Text style={styles.todayText}>{`${decisionLabel(decided.decision)}: ${decided.reason}`}</Text>
+        ) : reason ? (
+          <Text style={styles.todayText}>{reason}</Text>
+        ) : null}
         <Button label="Try again" onPress={checkIn} />
+        {mayCallReferee && (
+          <Button
+            label="Call the referee"
+            variant="secondary"
+            onPress={() => router.push(`/challenge/${c.id}/referee?checkIn=${latest.id}`)}
+          />
+        )}
       </>
     );
   } else {
@@ -395,5 +427,6 @@ const dayStyles = StyleSheet.create<Record<DayStatus, object>>({
   open: { borderColor: colors.accent },
   checking: { borderColor: colors.textSecondary },
   rejected: { borderColor: colors.danger },
+  referee: { backgroundColor: colors.border, borderColor: colors.textSecondary },
   future: { borderColor: colors.border },
 });
