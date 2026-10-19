@@ -3,7 +3,8 @@
 -- Tokens only ever move between accounts inside a balanced transaction.
 -- Balances are sums of entries, never stored numbers. The phone can read its
 -- own history but cannot write: every token move goes through one of the
--- functions at the end of this file.
+-- functions in the "Token moves" section, and nothing else in this file is
+-- callable from the app.
 --
 -- challenges and challenge_members only carry the columns the ledger needs.
 -- The challenge feature (plan step 6.1) adds the rest.
@@ -14,7 +15,7 @@
 
 create table public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
-  display_name text not null default '',
+  display_name text not null default '' check (length(display_name) <= 80),
   role text not null default 'member' check (role in ('member', 'support', 'admin')),
   created_at timestamptz not null default now()
 );
@@ -26,26 +27,6 @@ grant select on public.profiles to authenticated;
 create policy "Users read their own profile"
   on public.profiles for select to authenticated
   using (id = (select auth.uid()));
-
--- Every new account gets a profile, named from the sign-up form.
-create function public.handle_new_user() returns trigger
-  language plpgsql security definer set search_path = ''
-as $$
-begin
-  insert into public.profiles (id, display_name)
-  values (new.id, coalesce(new.raw_user_meta_data ->> 'display_name', ''));
-  return new;
-end;
-$$;
-
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute function public.handle_new_user();
-
--- Accounts that existed before this migration.
-insert into public.profiles (id, display_name)
-select id, coalesce(raw_user_meta_data ->> 'display_name', '') from auth.users
-on conflict (id) do nothing;
 
 -- ---------------------------------------------------------------------------
 -- Challenges and members (ledger columns only)
@@ -73,8 +54,10 @@ create table public.challenge_members (
   unique (challenge_id, user_id)
 );
 
--- A challenge's status only moves forward (ARCHITECTURE.md, "Data model").
-create function public.challenges_status_forward_only() returns trigger
+-- A challenge's status only moves forward (ARCHITECTURE.md, "Data model"),
+-- and the money terms are frozen once people can join: every member staked
+-- the same amount, and settlement checks the pool against it.
+create function public.challenges_guard() returns trigger
   language plpgsql set search_path = ''
 as $$
 declare
@@ -83,13 +66,16 @@ begin
   if array_position(steps, new.status) < array_position(steps, old.status) then
     raise exception 'challenge status cannot go back from % to %', old.status, new.status;
   end if;
+  if old.status <> 'draft' and (new.stake <> old.stake or new.app_fee_percent <> old.app_fee_percent) then
+    raise exception 'the stake and the app fee cannot change once a challenge is open';
+  end if;
   return new;
 end;
 $$;
 
-create trigger challenges_status_forward_only
-  before update of status on public.challenges
-  for each row execute function public.challenges_status_forward_only();
+create trigger challenges_guard
+  before update on public.challenges
+  for each row execute function public.challenges_guard();
 
 create function public.is_challenge_member(p_challenge_id uuid) returns boolean
   language sql stable security definer set search_path = ''
@@ -146,7 +132,9 @@ create table public.ledger_transactions (
   challenge_id uuid references public.challenges (id),
   note text not null default '',
   created_by uuid references public.profiles (id) on delete set null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  -- The database transaction that wrote it; entries must come from the same one.
+  xact_id xid8 not null default pg_current_xact_id()
 );
 
 create table public.ledger_entries (
@@ -185,18 +173,21 @@ create trigger ledger_entries_no_truncate
 -- The checks below run as security definer: deferred checks fire at commit as
 -- whoever is signed in, and must see every entry, not just the caller's.
 
--- Rule 2: balanced. Checked at commit, once all of a transaction's entries exist.
+-- Rule 2: balanced. Checked at commit, once all of a transaction's entries
+-- exist, both when the transaction is created and whenever an entry is added.
 create function public.ledger_check_balanced() returns trigger
   language plpgsql security definer set search_path = ''
 as $$
 declare
+  -- The transaction's own id, or the entry's transaction_id.
+  tx uuid := (to_jsonb(new) ->> tg_argv[0])::uuid;
   entry_count integer;
   total bigint;
 begin
   select count(*), coalesce(sum(amount), 0) into entry_count, total
-  from public.ledger_entries where transaction_id = new.id;
+  from public.ledger_entries where transaction_id = tx;
   if entry_count < 2 or total <> 0 then
-    raise exception 'ledger transaction % is not balanced (% entries, sum %)', new.id, entry_count, total;
+    raise exception 'ledger transaction % is not balanced (% entries, sum %)', tx, entry_count, total;
   end if;
   return null;
 end;
@@ -205,18 +196,21 @@ $$;
 create constraint trigger ledger_transactions_balanced
   after insert on public.ledger_transactions
   deferrable initially deferred
-  for each row execute function public.ledger_check_balanced();
+  for each row execute function public.ledger_check_balanced('id');
+create constraint trigger ledger_entries_balanced
+  after insert on public.ledger_entries
+  deferrable initially deferred
+  for each row execute function public.ledger_check_balanced('transaction_id');
 
--- Entries can only be added in the same database transaction that created
--- their ledger transaction (now() is fixed for a whole database transaction);
--- otherwise a later insert could unbalance it.
+-- Entries can only be added by the database transaction that created their
+-- ledger transaction. A ledger transaction is complete the moment it commits.
 create function public.ledger_entry_same_transaction() returns trigger
   language plpgsql security definer set search_path = ''
 as $$
 begin
   if not exists (
     select 1 from public.ledger_transactions t
-    where t.id = new.transaction_id and t.created_at = now()
+    where t.id = new.transaction_id and t.xact_id = pg_current_xact_id()
   ) then
     raise exception 'entries can only be added together with their ledger transaction';
   end if;
@@ -229,8 +223,8 @@ create trigger ledger_entries_same_transaction
   for each row execute function public.ledger_entry_same_transaction();
 
 -- Rule 3: no overdraft. Wallets and pools never go below zero. The account row
--- is locked first so two transactions at the same moment are checked one
--- after the other, each seeing the other's entries.
+-- is locked first so two spends at the same moment are checked one after the
+-- other, each seeing the other's entries.
 create function public.ledger_check_not_negative() returns trigger
   language plpgsql security definer set search_path = ''
 as $$
@@ -376,24 +370,54 @@ begin
 end;
 $$;
 
+-- Every new account gets a profile, named from the sign-up form, and an
+-- empty wallet. Runs as the table owner because sign-up happens as the auth
+-- service, which cannot touch public tables.
+create function public.handle_new_user() returns trigger
+  language plpgsql security definer set search_path = ''
+as $$
+begin
+  insert into public.profiles (id, display_name)
+  values (new.id, left(coalesce(new.raw_user_meta_data ->> 'display_name', ''), 80));
+  perform public.ledger_wallet(new.id);
+  return new;
+end;
+$$;
+
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();
+
+-- Accounts that existed before this migration.
+insert into public.profiles (id, display_name)
+select id, left(coalesce(raw_user_meta_data ->> 'display_name', ''), 80) from auth.users
+on conflict (id) do nothing;
+insert into public.ledger_accounts (kind, user_id)
+select 'wallet', id from public.profiles
+on conflict (user_id) where kind = 'wallet' do nothing;
+
 -- ---------------------------------------------------------------------------
 -- Token moves
 -- ---------------------------------------------------------------------------
 
--- Admin gives tokens to a tester (PRODUCT.md 1.2). p_request_id makes a retried
--- request count once.
+-- Admin gives tokens to a tester (PRODUCT.md 1.2). p_request_id is chosen by
+-- the caller per request, so a retried request counts once.
 create function public.admin_grant_tokens(
   p_user_id uuid, p_amount integer, p_note text, p_request_id uuid
 ) returns uuid
   language plpgsql security definer set search_path = ''
 as $$
 declare
+  key constant text := 'gift:' || p_request_id;
   tx uuid;
 begin
   if (select auth.role()) is distinct from 'service_role' and not exists (
     select 1 from public.profiles where id = (select auth.uid()) and role = 'admin'
   ) then
     raise exception 'only the admin can give tokens' using errcode = 'insufficient_privilege';
+  end if;
+  if p_request_id is null then
+    raise exception 'a request id is required';
   end if;
   if p_amount is null or p_amount <= 0 then
     raise exception 'the amount must be a positive whole number';
@@ -402,9 +426,18 @@ begin
     raise exception 'no such user';
   end if;
 
-  tx := public.ledger_begin('gift', 'gift:' || p_request_id, null, p_note, (select auth.uid()));
+  tx := public.ledger_begin('gift', key, null, p_note, (select auth.uid()));
   if tx is null then
-    return (select id from public.ledger_transactions where idempotency_key = 'gift:' || p_request_id);
+    -- Already done. Make sure the earlier gift is the same one being retried.
+    select t.id into tx
+    from public.ledger_transactions t
+    join public.ledger_entries e on e.transaction_id = t.id
+    where t.idempotency_key = key and t.kind = 'gift'
+      and e.account_id = public.ledger_wallet(p_user_id) and e.amount = p_amount;
+    if tx is null then
+      raise exception 'request id % was already used for a different gift', p_request_id;
+    end if;
+    return tx;
   end if;
   perform public.ledger_post(tx, public.ledger_system_account('admin_gifts'), -p_amount);
   perform public.ledger_post(tx, public.ledger_wallet(p_user_id), p_amount);
@@ -425,11 +458,14 @@ begin
   if me is null then
     raise exception 'sign in first' using errcode = 'insufficient_privilege';
   end if;
+  -- Lock the challenge: joins, leaves, quits and status changes of one
+  -- challenge then run one after the other.
   select * into c from public.challenges where id = p_challenge_id for update;
   if not found or c.status <> 'open' then
     raise exception 'this challenge is not open for joining';
   end if;
-  if not exists (select 1 from pg_catalog.pg_timezone_names where name = p_time_zone) then
+  if p_time_zone is null
+    or not exists (select 1 from pg_catalog.pg_timezone_names where name = p_time_zone) then
     raise exception 'unknown time zone %', p_time_zone;
   end if;
   if exists (select 1 from public.challenge_members where challenge_id = c.id and user_id = me) then
@@ -462,6 +498,9 @@ declare
   m public.challenge_members;
   tx uuid;
 begin
+  if me is null then
+    raise exception 'sign in first' using errcode = 'insufficient_privilege';
+  end if;
   select * into c from public.challenges where id = p_challenge_id for update;
   if not found or c.status not in ('draft', 'open') then
     raise exception 'you can only leave before the challenge starts';
@@ -483,14 +522,22 @@ $$;
 create function public.quit_challenge(p_challenge_id uuid) returns void
   language plpgsql security definer set search_path = ''
 as $$
+declare
+  me constant uuid := (select auth.uid());
+  c public.challenges;
 begin
-  update public.challenge_members m
+  if me is null then
+    raise exception 'sign in first' using errcode = 'insufficient_privilege';
+  end if;
+  select * into c from public.challenges where id = p_challenge_id for update;
+  if not found or c.status <> 'active' then
+    raise exception 'you can only quit a challenge that is running';
+  end if;
+  update public.challenge_members
   set result = 'forfeited'
-  from public.challenges c
-  where c.id = m.challenge_id and m.challenge_id = p_challenge_id
-    and m.user_id = (select auth.uid()) and m.result = 'in_progress' and c.status = 'active';
+  where challenge_id = c.id and user_id = me and result = 'in_progress';
   if not found then
-    raise exception 'you can only quit a challenge that is running and that you are still in';
+    raise exception 'you are not in this challenge, or your result is already decided';
   end if;
 end;
 $$;
@@ -582,10 +629,16 @@ $$;
 -- Who may call what
 -- ---------------------------------------------------------------------------
 
--- New functions are callable by everyone by default, so close them all first.
+-- Postgres makes every new function callable by everyone (PUBLIC), and
+-- Supabase adds grants to anon and authenticated on top. From now on, a
+-- function is closed until a migration grants it; the grants below are the
+-- whole list for this file. (A per-schema entry cannot take away the global
+-- PUBLIC grant, so that one is revoked globally.)
+alter default privileges revoke execute on functions from public;
+alter default privileges in schema public revoke execute on functions from anon, authenticated;
 revoke execute on function
   public.handle_new_user(),
-  public.challenges_status_forward_only(),
+  public.challenges_guard(),
   public.is_challenge_member(uuid),
   public.ledger_append_only(),
   public.ledger_check_balanced(),

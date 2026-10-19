@@ -6,15 +6,19 @@
 create role anon nologin noinherit;
 create role authenticated nologin noinherit;
 create role service_role nologin noinherit bypassrls;
+-- The auth service, which inserts into auth.users at sign-up. It has no
+-- rights on public tables, like the real one.
+create role supabase_auth_admin nologin noinherit;
 
 create schema auth;
-grant usage on schema auth to anon, authenticated, service_role;
+grant usage on schema auth to anon, authenticated, service_role, supabase_auth_admin;
 
 create table auth.users (
   id uuid primary key default gen_random_uuid(),
   email text,
   raw_user_meta_data jsonb not null default '{}'
 );
+grant select, insert, update, delete on auth.users to supabase_auth_admin;
 
 create function auth.uid() returns uuid language sql stable as $$
   select coalesce(

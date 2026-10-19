@@ -25,6 +25,7 @@ Zatouna is a habit app where friends stake tokens on finishing challenges. Expo 
 - Database changes go through migration files in `supabase/migrations/`. Never edit the database by hand in the dashboard.
 - `EXPO_PUBLIC_*` variables are compiled into the app and readable by anyone: only the Supabase URL and publishable key go there. Service-role keys and AI keys live only in Supabase function secrets.
 - Never commit `.env` files, tokens or passwords.
+- New database functions are closed to the app by default (the ledger migration revoked the default execute grants). A function the phone may call needs an explicit `grant execute ... to authenticated` in its migration; server-only functions get `to service_role`.
 - Builds read `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` from the EAS `preview` environment.
 
 ## Before opening a pull request
