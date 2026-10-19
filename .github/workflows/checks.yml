@@ -16,6 +16,11 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
+      # Edge Functions run on Deno; the app's typecheck skips them.
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: deno check --node-modules-dir=none supabase/functions/judge-check-in/index.ts
       # The runner image ships PostgreSQL 16; the tests start their own throwaway server.
       - run: npm run test:db
         env:

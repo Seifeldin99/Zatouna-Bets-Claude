@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Pill, TokenAmount } from '@/components/ui';
 import { type Challenge, type ChallengeStatus, MAX_MEMBERS, statusLabel } from '@/lib/challenges';
+import { type TodayStatus, todayLine } from '@/lib/check-ins';
 import { dayCount, daysFromToday, formatDate, lastDay, relativeDay } from '@/lib/dates';
 import { colors, fonts, radius } from '@/theme';
 
@@ -29,7 +30,8 @@ export function timeline(c: Challenge): string {
   }
 }
 
-export function ChallengeCard({ challenge }: { challenge: Challenge }) {
+export function ChallengeCard({ challenge, today }: { challenge: Challenge; today?: TodayStatus }) {
+  const line = today ? todayLine(today) : null;
   return (
     <Pressable
       accessibilityRole="button"
@@ -42,6 +44,11 @@ export function ChallengeCard({ challenge }: { challenge: Challenge }) {
         <StatusPill status={challenge.status} />
       </View>
       <Text style={styles.timeline}>{timeline(challenge)}</Text>
+      {line && (
+        <Text style={[styles.today, line.tone === 'accent' && styles.todayAccent, line.tone === 'danger' && styles.todayDanger]}>
+          {line.text}
+        </Text>
+      )}
       <View style={styles.bottom}>
         <TokenAmount amount={challenge.stake} />
         <Text style={styles.meta}>stake</Text>
@@ -67,6 +74,9 @@ const styles = StyleSheet.create({
   top: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
   title: { flex: 1, fontFamily: fonts.sansSemiBold, fontSize: 18, color: colors.text },
   timeline: { fontFamily: fonts.sans, fontSize: 14, color: colors.textSecondary },
+  today: { fontFamily: fonts.sansSemiBold, fontSize: 14, color: colors.textSecondary },
+  todayAccent: { color: colors.accent },
+  todayDanger: { color: colors.danger },
   bottom: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
   meta: { fontFamily: fonts.sans, fontSize: 13, color: colors.textMuted },
   dot: { color: colors.textMuted },

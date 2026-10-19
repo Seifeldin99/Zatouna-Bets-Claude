@@ -1,0 +1,8 @@
+# Settings for the Supabase CLI. The database itself is changed only through
+# the migration files next to this (CLAUDE.md).
+project_id = "qolfsnzmbufxnclrzivo"
+
+# The app calls this with the signed-in user's token; the gateway rejects
+# calls without one before the function runs.
+[functions.judge-check-in]
+verify_jwt = true

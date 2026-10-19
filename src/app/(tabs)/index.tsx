@@ -5,12 +5,19 @@ import { ChallengeCard } from '@/components/challenge-card';
 import { Button, EmptyState, ErrorText, Screen, SectionLabel, TokenBadge } from '@/components/ui';
 import { displayNameOf, useAuth } from '@/lib/auth';
 import { listChallenges, myBalance } from '@/lib/challenges';
+import { type Today, myToday } from '@/lib/check-ins';
 import { useLoad } from '@/lib/use-load';
 import { colors, fonts, radius } from '@/theme';
 
 async function loadHome() {
-  const [balance, challenges] = await Promise.all([myBalance(), listChallenges()]);
-  return { balance, challenges };
+  const [balance, challenges, today] = await Promise.all([myBalance(), listChallenges(), myToday()]);
+  const todayById = new Map<string, Today>(today.map((t) => [t.challenge_id, t]));
+  return { balance, challenges, todayById };
+}
+
+/** Challenges still waiting for today's check-in come first. */
+function needsMe(t: Today | undefined): number {
+  return t?.status === 'open' || t?.status === 'rejected' ? 0 : 1;
 }
 
 export default function HomeScreen() {
@@ -21,7 +28,10 @@ export default function HomeScreen() {
     .toUpperCase();
 
   const challenges = data?.challenges ?? [];
-  const active = challenges.filter((c) => c.status === 'active' || c.status === 'refereeing');
+  const todayOf = (id: string) => data?.todayById.get(id);
+  const active = challenges
+    .filter((c) => c.status === 'active' || c.status === 'refereeing')
+    .sort((a, b) => needsMe(todayOf(a.id)) - needsMe(todayOf(b.id)));
   // Won counts settled challenges where you finished; that arrives with settlement in the app.
   const nextUp = [...active, ...challenges.filter((c) => c.status === 'open' || c.status === 'draft')].slice(0, 3);
 
@@ -60,7 +70,7 @@ export default function HomeScreen() {
           </>
         )}
         {nextUp.map((c) => (
-          <ChallengeCard key={c.id} challenge={c} />
+          <ChallengeCard key={c.id} challenge={c} today={todayOf(c.id)?.status} />
         ))}
       </View>
     </Screen>

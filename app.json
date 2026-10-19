@@ -35,6 +35,14 @@
           "resizeMode": "contain",
           "backgroundColor": "#000000"
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Zatouna uses the camera to take your check-in photo.",
+          "recordAudioAndroid": false,
+          "barcodeScannerEnabled": false
+        }
       ]
     ],
     "extra": {

@@ -78,6 +78,7 @@ function RootNavigator() {
           <Stack.Screen name="challenge/new" options={{ presentation: 'modal' }} />
           <Stack.Screen name="challenge/[id]/index" />
           <Stack.Screen name="challenge/[id]/edit" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="challenge/[id]/check-in" options={{ presentation: 'modal' }} />
           <Stack.Screen name="join/[code]" />
         </Stack.Protected>
         <Stack.Protected guard={!session}>
