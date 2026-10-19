@@ -240,6 +240,15 @@ export async function leaveChallenge(id: string): Promise<void> {
 }
 
 /**
+ * Quits from the second day on (product story 4.3): the stake stays in the
+ * pool for the members who finish. The server refuses once the result is decided.
+ */
+export async function quitChallenge(id: string): Promise<void> {
+  const { error } = await supabase.rpc('quit_challenge', { p_challenge_id: id });
+  if (error) throw toError(error);
+}
+
+/**
  * True during the first day, while people can still join or leave and the
  * creator can edit or delete. Judged by the phone's date; the server judges
  * by the creator's time zone and has the last word.
