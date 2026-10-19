@@ -14,18 +14,24 @@ import {
   TextField,
   Title,
 } from '@/components/ui';
-import { type Challenge, listChallenges } from '@/lib/challenges';
+import { type Challenge, type Outcome, listChallenges, myOutcomes } from '@/lib/challenges';
 import { useLoad } from '@/lib/use-load';
 import { colors } from '@/theme';
 
 const sections: { label: string; statuses: Challenge['status'][] }[] = [
-  { label: 'Active', statuses: ['active', 'refereeing'] },
+  { label: 'Active', statuses: ['active'] },
+  { label: 'Ended', statuses: ['refereeing'] },
   { label: 'Not started', statuses: ['draft', 'open'] },
   { label: 'Completed', statuses: ['settled'] },
 ];
 
+async function loadBets() {
+  const [challenges, outcomes] = await Promise.all([listChallenges(), myOutcomes()]);
+  return { challenges, outcomeById: new Map<string, Outcome>(outcomes.map((o) => [o.challenge_id, o])) };
+}
+
 export default function BetsScreen() {
-  const { data, error, loading, refreshing, reload } = useLoad(listChallenges);
+  const { data, error, loading, refreshing, reload } = useLoad(loadBets);
   const [code, setCode] = useState('');
 
   function lookUp() {
@@ -78,7 +84,7 @@ export default function BetsScreen() {
 
       {error && <ErrorText>{error}</ErrorText>}
       {loading && <Loading />}
-      {data && data.length === 0 && (
+      {data && data.challenges.length === 0 && (
         <EmptyState
           title="No challenges yet"
           body="Tap + to create one and invite friends, or enter a code a friend sent you."
@@ -86,13 +92,13 @@ export default function BetsScreen() {
       )}
       {data &&
         sections.map(({ label, statuses }) => {
-          const items = data.filter((c) => statuses.includes(c.status));
+          const items = data.challenges.filter((c) => statuses.includes(c.status));
           if (items.length === 0) return null;
           return (
             <View key={label} style={styles.section}>
               <SectionLabel>{label}</SectionLabel>
               {items.map((c) => (
-                <ChallengeCard key={c.id} challenge={c} />
+                <ChallengeCard key={c.id} challenge={c} outcome={data.outcomeById.get(c.id)} />
               ))}
             </View>
           );

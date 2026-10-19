@@ -83,6 +83,7 @@ function RootNavigator() {
           <Stack.Screen name="referee/index" />
           <Stack.Screen name="referee/[id]" />
           <Stack.Screen name="join/[code]" />
+          <Stack.Screen name="tokens" />
         </Stack.Protected>
         <Stack.Protected guard={!session}>
           <Stack.Screen name="sign-in" />

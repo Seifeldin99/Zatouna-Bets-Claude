@@ -31,14 +31,14 @@ A **table** is like a spreadsheet tab; each row is one record.
 | `challenges` | a challenge, always made from a template | creator, template, title and rule (copied from the template), schedule, start date, length, stake, misses allowed, **app fee %** (copied in at creation), **status** |
 | `challenge_members` | one person in one challenge | challenge, user, joined at, **time zone** (fixed at joining), **result** (in progress / finished / forfeited) |
 | `invites` | an invite code | challenge, code, expires at |
-| `app_settings` | one row of switches, server only | welcome tokens for new accounts |
+| `app_settings` | one row of switches, server only | welcome tokens, app fee %, referee time limits (1h to call after the end, 6h to finalize, 48h per case) |
 | `check_ins` | one photo and note (a retry is a new row) | member, the day it counts for, attempt number, photo path, note, **state** (pending / accepted / rejected) |
 | `ai_checks` | the AI's verdict on a check-in | check-in, label (likely okay / unsure / likely not okay / failed), one-line reason, model name, time taken |
 | `referee_cases` | a request for support to overrule the AI | check-in, who asked, the day, explanation, decision (open / accepted / rejected), reason, decided by (empty for the 48-hour rule), decided at |
 | `push_tokens` | a phone's notification address | user, token |
 | `ledger_accounts`, `ledger_transactions`, `ledger_entries` | the token ledger | see below |
 
-A challenge's **status** only ever moves forward: *draft → open* (can join) *→ active* (started) *→ refereeing* (every member's last day is over; 48h for open referee cases) *→ settled*. Because each member runs on their own time zone, a challenge ends only when the member furthest west has finished their last day.
+A challenge's **status** only ever moves forward: *draft → open* (can join) *→ active* (started) *→ refereeing* (every member's last day is over; up to 6h for open referee cases) *→ settled*. Because each member runs on their own time zone, a challenge ends only when the member furthest west has finished their last day.
 
 ## The token ledger
 
@@ -73,8 +73,10 @@ A balance is never stored as a single number someone could overwrite. It is alwa
 3. **No overdraft.** A user wallet can never go below zero.
 4. **Only the server writes.** The phone can read its own history but has no permission to add entries.
 5. **One key per real-world event (no duplicate settlement).** Every transaction carries a unique **idempotency key**: a label for the event it records, such as `stake:<challenge>:<user>` or `settle:<challenge>`. The database refuses a second transaction with the same key. "Idempotent" means doing it twice has the same effect as doing it once. So if settlement is retried after a crash or runs twice by accident, the second run changes nothing.
-6. **One settlement at a time.** Settlement locks the challenge row, checks that its status is *refereeing*, closes any referee case still open as accepted (PRODUCT.md 7.3), writes all payouts, and sets the status to *settled*, all in **one database transaction**: either every step happens or none does. A second run finds *settled* and stops.
+6. **One settlement at a time.** Settlement locks the challenge row, checks that its status is *refereeing*, closes any referee case still open as accepted (PRODUCT.md 7.3), decides each member still in progress as finished or forfeited by their misses, writes all payouts, and sets the status to *settled*, all in **one database transaction**: either every step happens or none does. A second run finds *settled* and stops.
 7. **The pool must end at zero.** After settlement the pool's balance is checked to be exactly 0; if not, the whole thing is undone and flagged.
+
+**When settlement runs.** A job runs every minute (`finish_due_challenges`): it moves challenges whose last midnight has passed to *refereeing*, accepts referee cases past their time limit, and settles each *refereeing* challenge once nothing can change the result (no photo is being checked, no rejected photo can still go to the referee, no case is open; `challenge_waiting_for`) or at the 6-hour limit after the end. In the common case that is the minute the challenge ends. A challenge whose settlement fails (for example a pool that doesn't match the stakes) is logged and left for a human; the others still settle.
 
 Step 5 of the plan builds this first, with automated tests, including "settling twice pays nothing extra" and "two people joining at the same moment can't overdraw a wallet."
 

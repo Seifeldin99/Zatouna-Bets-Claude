@@ -35,7 +35,7 @@ export type Member = {
   user_id: string;
   display_name: string;
   joined_at: string;
-  result: 'in_progress' | 'finished' | 'forfeited';
+  result: MemberResult;
 };
 
 export type ChallengeDetails = {
@@ -72,6 +72,70 @@ export type InvitePreview = {
   already_member: boolean;
   can_join: boolean;
   blocker: string | null;
+};
+
+export type MemberResult = 'in_progress' | 'finished' | 'forfeited';
+
+/** Your result in one settled challenge (for the Bets list and the Won count). */
+export type Outcome = {
+  challenge_id: string;
+  result: MemberResult;
+  quit: boolean;
+  /** What came back to your wallet: your stake plus your share, or 0. */
+  payout: number;
+  /** Payout minus stake: what you gained or lost. */
+  net: number;
+  settled_at: string;
+};
+
+export type ResultMember = {
+  member_id: string;
+  user_id: string;
+  name: string;
+  mine: boolean;
+  result: MemberResult;
+  quit: boolean;
+  /** Null until the challenge is settled, and for members who forfeited. */
+  payout: number | null;
+};
+
+/** The end of one challenge: who finished, what the pool held, what each member got. */
+export type Results = {
+  challenge_id: string;
+  status: ChallengeStatus;
+  stake: number;
+  fee_percent: number;
+  pool: number;
+  /** When the last member's last day is over. */
+  ends_at: string;
+  /** After this, nobody can call the referee any more. */
+  calls_close_at: string;
+  /** The payout runs by this time at the latest. */
+  pays_out_by: string;
+  settled_at: string | null;
+  open_cases: number;
+  /**
+   * What the payout waits for: a photo still being checked, a rejected last-day
+   * photo whose owner can still call the referee, or an open case. Null: nothing.
+   */
+  waiting_for: 'pending' | 'calls' | 'cases' | null;
+  forfeited: number | null;
+  app_fee: number | null;
+  leftover: number | null;
+  my_result: MemberResult;
+  my_payout: number | null;
+  members: ResultMember[];
+};
+
+/** One change to your wallet. */
+export type TokenLine = {
+  id: number;
+  at: string;
+  amount: number;
+  kind: 'gift' | 'stake' | 'refund' | 'settlement' | 'correction';
+  note: string;
+  challenge_id: string | null;
+  challenge_title: string | null;
 };
 
 const challengeColumns =
@@ -201,12 +265,60 @@ export async function myBalance(): Promise<number> {
   return Number(data?.balance ?? 0);
 }
 
+/** Your result in every completed challenge, newest first. */
+export async function myOutcomes(): Promise<Outcome[]> {
+  const { data, error } = await supabase.rpc('my_outcomes');
+  if (error) throw toError(error);
+  return (data ?? []) as Outcome[];
+}
+
+/** The end of a challenge, for its members. Works before the payout too, with payouts still null. */
+export async function getResults(id: string): Promise<Results> {
+  const { data, error } = await supabase.rpc('challenge_results', { p_challenge_id: id });
+  if (error) throw toError(error);
+  return data as Results;
+}
+
+/** Every change to your wallet, newest first. */
+export async function myTokenHistory(): Promise<TokenLine[]> {
+  const { data, error } = await supabase.rpc('my_token_history');
+  if (error) throw toError(error);
+  return (data ?? []) as TokenLine[];
+}
+
+/** "Payout: Read a Book", "Stake: Read a Book", "Welcome tokens for testing". */
+export function tokenLineLabel(line: TokenLine): string {
+  if (line.kind === 'settlement') return `Payout: ${line.challenge_title ?? 'a challenge'}`;
+  if (line.kind === 'gift' && line.note.toLowerCase().startsWith('welcome')) return 'Welcome tokens';
+  if (line.kind === 'gift') return line.note ? `Gift: ${line.note}` : 'Gift';
+  return line.note || line.kind;
+}
+
+/** "Finished · +30 tokens", "Forfeited · −100 tokens", "Quit · −100 tokens". */
+export function outcomeLine(o: Outcome): { text: string; tone: 'accent' | 'danger' } {
+  const sign = o.net > 0 ? '+' : o.net < 0 ? '−' : '';
+  const amount = `${sign}${Math.abs(o.net)} ${Math.abs(o.net) === 1 ? 'token' : 'tokens'}`;
+  if (o.result === 'finished') return { text: `Finished · ${amount}`, tone: 'accent' };
+  return { text: `${o.quit ? 'Quit' : 'Forfeited'} · ${amount}`, tone: 'danger' };
+}
+
+export function resultLabel(result: MemberResult, quit: boolean): string {
+  switch (result) {
+    case 'finished':
+      return 'Finished';
+    case 'forfeited':
+      return quit ? 'Quit' : 'Forfeited';
+    default:
+      return 'In progress';
+  }
+}
+
 export function statusLabel(status: ChallengeStatus): string {
   switch (status) {
     case 'active':
       return 'Active';
     case 'refereeing':
-      return 'Finishing';
+      return 'Ended';
     case 'settled':
       return 'Completed';
     default:

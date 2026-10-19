@@ -1,6 +1,6 @@
 // The referee: a member asks support to overrule the AI on their own rejected
 // check-in; support (the admin during testing) decides with a reason.
-import { toError } from '@/lib/challenges';
+import { type ChallengeStatus, toError } from '@/lib/challenges';
 import { type AiLabel } from '@/lib/check-ins';
 import { type Ymd } from '@/lib/dates';
 import { supabase } from '@/lib/supabase';
@@ -19,6 +19,8 @@ export type RefereeCase = {
   reason: string;
   explanation: string;
   created_at: string;
+  /** When the case counts as accepted if support has not decided. */
+  expires_at: string;
 };
 
 /** One case as support sees it in the queue. */
@@ -27,6 +29,7 @@ export type QueueCase = {
   check_in_id: string;
   challenge_id: string;
   challenge_title: string;
+  challenge_status: ChallengeStatus;
   rule: string;
   member_name: string;
   day: Ymd;
@@ -39,8 +42,20 @@ export type QueueCase = {
   decision: RefereeDecision;
   reason: string;
   created_at: string;
+  /** When the case counts as accepted if nobody decides it. */
+  expires_at: string;
   decided_at: string | null;
 };
+
+/** "5h 12m", "48m", or "any minute" once the time has passed. */
+export function timeLeft(until: string, now = Date.now()): string {
+  const minutes = Math.floor((new Date(until).getTime() - now) / 60_000);
+  if (minutes < 1) return 'any minute';
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h >= 24) return `${Math.floor(h / 24)}d ${h % 24}h`;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
 
 /** True for support and the admin: the people who decide referee cases. */
 export async function amSupport(): Promise<boolean> {
@@ -49,10 +64,16 @@ export async function amSupport(): Promise<boolean> {
   return data === true;
 }
 
-/** True while the referee can still be called on a verdict given at `decidedAt`. */
-export function canCallReferee(decidedAt: string | null): boolean {
+/**
+ * True while the referee can still be called on a verdict given at `decidedAt`:
+ * within 24 hours of it, and before `closesAtMs` (the cut-off after your last
+ * midnight) when one is given. The server has the last word.
+ */
+export function canCallReferee(decidedAt: string | null, closesAtMs?: number): boolean {
   if (!decidedAt) return false;
-  return Date.now() - new Date(decidedAt).getTime() < REFEREE_WINDOW_HOURS * 3_600_000;
+  const now = Date.now();
+  if (closesAtMs !== undefined && now >= closesAtMs) return false;
+  return now - new Date(decidedAt).getTime() < REFEREE_WINDOW_HOURS * 3_600_000;
 }
 
 export async function callReferee(checkInId: string, explanation: string): Promise<string> {

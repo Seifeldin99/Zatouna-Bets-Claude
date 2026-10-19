@@ -2,13 +2,13 @@ import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Pill, TokenAmount } from '@/components/ui';
-import { type Challenge, type ChallengeStatus, MAX_MEMBERS, statusLabel } from '@/lib/challenges';
+import { type Challenge, type ChallengeStatus, type Outcome, MAX_MEMBERS, outcomeLine, statusLabel } from '@/lib/challenges';
 import { type TodayStatus, todayLine } from '@/lib/check-ins';
 import { dayCount, daysFromToday, formatDate, lastDay, relativeDay } from '@/lib/dates';
 import { colors, fonts, radius } from '@/theme';
 
 export function StatusPill({ status }: { status: ChallengeStatus }) {
-  const tone = status === 'active' || status === 'refereeing' ? 'green' : 'muted';
+  const tone = status === 'active' ? 'green' : 'muted';
   return <Pill label={statusLabel(status)} tone={tone} />;
 }
 
@@ -18,20 +18,30 @@ export function timeline(c: Challenge): string {
     case 'draft':
     case 'open':
       return `Starts ${relativeDay(c.start_date).toLowerCase()} · ${dayCount(c.length_days)}`;
-    case 'active':
-    case 'refereeing': {
+    case 'active': {
       const day = daysFromToday(c.start_date) * -1 + 1;
       if (day < 1) return `Starts ${relativeDay(c.start_date).toLowerCase()}`;
-      if (day > c.length_days) return 'Waiting for the results';
+      if (day > c.length_days) return 'Last day over · waiting for the others';
       return `Day ${day} of ${c.length_days}`;
     }
+    case 'refereeing':
+      return 'Ended · waiting for the results';
     case 'settled':
       return `Ended ${formatDate(lastDay(c.start_date, c.length_days))}`;
   }
 }
 
-export function ChallengeCard({ challenge, today }: { challenge: Challenge; today?: TodayStatus }) {
-  const line = today ? todayLine(today) : null;
+export function ChallengeCard({
+  challenge,
+  today,
+  outcome,
+}: {
+  challenge: Challenge;
+  today?: TodayStatus;
+  /** Your result, once the challenge is completed. */
+  outcome?: Outcome;
+}) {
+  const line = outcome ? outcomeLine(outcome) : today ? todayLine(today) : null;
   return (
     <Pressable
       accessibilityRole="button"

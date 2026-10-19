@@ -1,18 +1,24 @@
 import { router } from 'expo-router';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ChallengeCard } from '@/components/challenge-card';
 import { Button, EmptyState, ErrorText, Screen, SectionLabel, TokenBadge } from '@/components/ui';
 import { displayNameOf, useAuth } from '@/lib/auth';
-import { listChallenges, myBalance } from '@/lib/challenges';
+import { listChallenges, myBalance, myOutcomes } from '@/lib/challenges';
 import { type Today, myToday } from '@/lib/check-ins';
 import { useLoad } from '@/lib/use-load';
 import { colors, fonts, radius } from '@/theme';
 
 async function loadHome() {
-  const [balance, challenges, today] = await Promise.all([myBalance(), listChallenges(), myToday()]);
+  const [balance, challenges, today, outcomes] = await Promise.all([
+    myBalance(),
+    listChallenges(),
+    myToday(),
+    myOutcomes(),
+  ]);
   const todayById = new Map<string, Today>(today.map((t) => [t.challenge_id, t]));
-  return { balance, challenges, todayById };
+  const won = outcomes.filter((o) => o.result === 'finished').length;
+  return { balance, challenges, todayById, won };
 }
 
 /** Challenges still waiting for today's check-in come first. */
@@ -32,7 +38,6 @@ export default function HomeScreen() {
   const active = challenges
     .filter((c) => c.status === 'active' || c.status === 'refereeing')
     .sort((a, b) => needsMe(todayOf(a.id)) - needsMe(todayOf(b.id)));
-  // Won counts settled challenges where you finished; that arrives with settlement in the app.
   const nextUp = [...active, ...challenges.filter((c) => c.status === 'open' || c.status === 'draft')].slice(0, 3);
 
   return (
@@ -42,7 +47,13 @@ export default function HomeScreen() {
           <Image source={require('../../../assets/images/icon.png')} style={styles.logo} />
           <Text style={styles.wordmark}>Zatouna</Text>
         </View>
-        <TokenBadge balance={data?.balance ?? 0} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Your tokens and history"
+          onPress={() => router.push('/tokens')}
+          style={({ pressed }) => pressed && styles.pressed}>
+          <TokenBadge balance={data?.balance ?? 0} />
+        </Pressable>
       </View>
 
       <View style={styles.welcome}>
@@ -53,7 +64,7 @@ export default function HomeScreen() {
         </Text>
         <View style={styles.stats}>
           <Stat label="Active" value={active.length} />
-          <Stat label="Won" value={0} />
+          <Stat label="Won" value={data?.won ?? 0} />
         </View>
       </View>
 
@@ -88,6 +99,7 @@ function Stat({ label, value }: { label: string; value: number }) {
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  pressed: { opacity: 0.7 },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   logo: { width: 40, height: 40, borderRadius: 12 },
   wordmark: { fontFamily: fonts.serif, fontSize: 22, color: colors.text },

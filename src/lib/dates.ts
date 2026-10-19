@@ -37,6 +37,17 @@ export function formatDate(ymd: Ymd): string {
   return fromYmd(ymd).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
+/** "Tue, Oct 20, 1:00 AM", in the phone's time zone. */
+export function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
 /** "Today", "Tomorrow", "In 3 days", "2 days ago" */
 export function relativeDay(ymd: Ymd): string {
   const n = daysFromToday(ymd);
