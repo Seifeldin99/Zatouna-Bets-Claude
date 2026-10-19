@@ -12,12 +12,12 @@ import {
   TITLE_MAX,
   howOften,
 } from '@/lib/challenges';
-import { addDays, daysFromToday, formatDate, lastDay, relativeDay, todayYmd } from '@/lib/dates';
+import { addDays, dayCount, daysFromToday, formatDate, lastDay, relativeDay, todayYmd } from '@/lib/dates';
 import { templates } from '@/lib/templates';
 import { colors, fonts } from '@/theme';
 
 type Props = {
-  /** Set when editing; the stake is then locked. */
+  /** Set when editing; the stake is then locked, and the start too once it has begun. */
   initial?: Challenge;
   /** The creator's tokens, shown under the stake. */
   balance?: number | null;
@@ -27,18 +27,19 @@ type Props = {
 
 export function ChallengeForm({ initial, balance, submitLabel, onSubmit }: Props) {
   const editing = initial !== undefined;
+  const startLocked = editing && initial.status === 'active';
   const [template, setTemplate] = useState<number | null>(null);
   const [title, setTitle] = useState(initial?.title ?? '');
   const [rule, setRule] = useState(initial?.rule ?? '');
   const [timesPerWeek, setTimesPerWeek] = useState(initial?.times_per_week ?? 7);
-  const [startIn, setStartIn] = useState(initial ? Math.max(1, daysFromToday(initial.start_date)) : 1);
+  const [startIn, setStartIn] = useState(initial ? Math.max(0, daysFromToday(initial.start_date)) : 0);
   const [lengthDays, setLengthDays] = useState(initial?.length_days ?? 7);
   const [missesAllowed, setMissesAllowed] = useState(initial?.misses_allowed ?? 0);
   const [stakeText, setStakeText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const startDate = addDays(todayYmd(), startIn);
+  const startDate = startLocked ? initial.start_date : addDays(todayYmd(), startIn);
   const endDate = lastDay(startDate, lengthDays);
   const stake = editing ? initial.stake : Number.parseInt(stakeText, 10);
 
@@ -89,6 +90,9 @@ export function ChallengeForm({ initial, balance, submitLabel, onSubmit }: Props
   }
 
   const picked = template === null ? null : templates[template];
+  const startLabel = `${relativeDay(startDate)} · ${formatDate(startDate)}`;
+  const runs =
+    lengthDays === 1 ? `Runs on ${formatDate(startDate)}.` : `Runs ${formatDate(startDate)} to ${formatDate(endDate)}.`;
 
   return (
     <View style={styles.form}>
@@ -137,18 +141,29 @@ export function ChallengeForm({ initial, balance, submitLabel, onSubmit }: Props
         max={7}
         onChange={setTimesPerWeek}
       />
-      <Stepper
-        label="Starts"
-        display={`${relativeDay(startDate)} · ${formatDate(startDate)}`}
-        value={startIn}
-        min={1}
-        max={MAX_START_DAYS_AHEAD}
-        onChange={setStartIn}
-        hint="Friends can join until midnight before the start."
-      />
+      {startLocked ? (
+        <View>
+          <InfoRow label="Starts" value={startLabel} />
+          <Hint>{"The challenge has started, so its start date can't change."}</Hint>
+        </View>
+      ) : (
+        <Stepper
+          label="Starts"
+          display={startLabel}
+          value={startIn}
+          min={0}
+          max={MAX_START_DAYS_AHEAD}
+          onChange={setStartIn}
+          hint={
+            startIn === 0
+              ? 'Starting today: the challenge begins right away. Friends can join until midnight tonight.'
+              : 'Friends can join until midnight at the end of the start day.'
+          }
+        />
+      )}
       <Stepper
         label="Length"
-        display={`${lengthDays} days · ends ${formatDate(endDate)}`}
+        display={`${dayCount(lengthDays)} · ends ${formatDate(endDate)}`}
         value={lengthDays}
         min={MIN_LENGTH_DAYS}
         max={MAX_LENGTH_DAYS}
@@ -187,8 +202,8 @@ export function ChallengeForm({ initial, balance, submitLabel, onSubmit }: Props
 
       <Text style={styles.summary}>
         {editing
-          ? `Runs ${formatDate(startDate)} to ${formatDate(endDate)}.`
-          : `Runs ${formatDate(startDate)} to ${formatDate(endDate)}. Your stake moves to the pool when you tap the button, and comes back if you delete the challenge before it starts.`}
+          ? runs
+          : `${runs} Your stake moves to the pool when you tap the button, and comes back if you delete the challenge during its first day.`}
       </Text>
 
       {error && <ErrorText>{error}</ErrorText>}

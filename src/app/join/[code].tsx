@@ -1,29 +1,51 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import {
   Button,
   ErrorText,
+  Hint,
   InfoBox,
   InfoRow,
   Loading,
-  Notice,
   Screen,
   ScreenHeader,
   StatGrid,
   StatTile,
 } from '@/components/ui';
-import { MAX_MEMBERS, howOften, previewInvite } from '@/lib/challenges';
-import { formatDate, lastDay, relativeDay } from '@/lib/dates';
+import { MAX_MEMBERS, howOften, joinChallenge, myBalance, previewInvite } from '@/lib/challenges';
+import { dayCount, deviceTimeZone, formatDate, lastDay, relativeDay } from '@/lib/dates';
 import { goBack } from '@/lib/navigation';
 import { useLoad } from '@/lib/use-load';
 import { colors, fonts } from '@/theme';
 
 export default function JoinScreen() {
   const { code } = useLocalSearchParams<{ code: string }>();
-  const load = useCallback(() => previewInvite(code), [code]);
-  const { data: p, error, loading } = useLoad(load);
+  const load = useCallback(async () => {
+    const [preview, balance] = await Promise.all([previewInvite(code), myBalance()]);
+    return { preview, balance };
+  }, [code]);
+  const { data, error, loading } = useLoad(load);
+  const [joining, setJoining] = useState(false);
+  const [joinError, setJoinError] = useState<string | null>(null);
+
+  const p = data?.preview;
+  const balance = data?.balance ?? 0;
+  const short = p ? p.stake > balance : false;
+
+  async function join() {
+    if (!p) return;
+    setJoining(true);
+    setJoinError(null);
+    try {
+      await joinChallenge(p.challenge_id, deviceTimeZone());
+      router.replace(`/challenge/${p.challenge_id}`);
+    } catch (e) {
+      setJoinError(e instanceof Error ? e.message : String(e));
+      setJoining(false);
+    }
+  }
 
   return (
     <Screen>
@@ -41,7 +63,7 @@ export default function JoinScreen() {
             <Text style={styles.invited}>{p.creator_name ?? 'A friend'} invites you to</Text>
             <Text style={styles.title}>{p.title}</Text>
             <Text style={styles.timeline}>
-              Starts {relativeDay(p.start_date).toLowerCase()} · {p.length_days} days
+              Starts {relativeDay(p.start_date).toLowerCase()} · {dayCount(p.length_days)}
             </Text>
           </View>
 
@@ -57,14 +79,21 @@ export default function JoinScreen() {
           <View>
             <InfoRow label="Starts" value={formatDate(p.start_date)} />
             <InfoRow label="Ends" value={formatDate(lastDay(p.start_date, p.length_days))} />
+            <InfoRow label="Joining closes" value={`End of ${formatDate(p.start_date)}`} />
           </View>
 
           {p.already_member ? (
             <Button label="Open the challenge" onPress={() => router.replace(`/challenge/${p.challenge_id}`)} />
           ) : p.can_join ? (
-            <Notice>
-              You can join this challenge. Joining and placing your stake arrive in the next update of the app.
-            </Notice>
+            <View style={styles.joinBox}>
+              {joinError && <ErrorText>{joinError}</ErrorText>}
+              <Button label={`Join for ${p.stake} tokens`} onPress={join} loading={joining} disabled={short} />
+              <Hint>
+                {short
+                  ? `You have ${balance} tokens and need ${p.stake} to join.`
+                  : `You have ${balance} tokens. Your stake moves to the pool now and comes back if you leave before the end of the first day.`}
+              </Hint>
+            </View>
           ) : (
             <ErrorText>{capitalize(p.blocker ?? 'You cannot join this challenge.')}</ErrorText>
           )}
@@ -91,4 +120,5 @@ const styles = StyleSheet.create({
   title: { fontFamily: fonts.serif, fontSize: 32, lineHeight: 38, color: colors.text },
   timeline: { fontFamily: fonts.sans, fontSize: 14, color: colors.textSecondary },
   text: { fontFamily: fonts.sans, fontSize: 14, lineHeight: 20, color: colors.textSecondary },
+  joinBox: { gap: 12 },
 });

@@ -2,11 +2,11 @@
 // only move inside the database functions called here (CLAUDE.md).
 import { createURL } from 'expo-linking';
 
-import type { Ymd } from '@/lib/dates';
+import { daysFromToday, type Ymd } from '@/lib/dates';
 import { supabase } from '@/lib/supabase';
 
 export const MAX_MEMBERS = 10;
-export const MIN_LENGTH_DAYS = 7;
+export const MIN_LENGTH_DAYS = 1;
 export const MAX_LENGTH_DAYS = 30;
 export const MAX_START_DAYS_AHEAD = 90;
 export const TITLE_MAX = 80;
@@ -67,6 +67,8 @@ export type InvitePreview = {
   status: ChallengeStatus;
   member_count: number;
   creator_name: string | null;
+  /** Midnight at the end of the first day, in the creator's time zone. */
+  join_closes_at: string;
   already_member: boolean;
   can_join: boolean;
   blocker: string | null;
@@ -160,6 +162,28 @@ export async function updateChallenge(id: string, f: Omit<ChallengeFields, 'stak
 export async function deleteChallenge(id: string): Promise<void> {
   const { error } = await supabase.rpc('delete_challenge', { p_id: id });
   if (error) throw toError(error);
+}
+
+/** Joins the challenge; the stake moves to the pool at once. Returns the membership id. */
+export async function joinChallenge(id: string, timeZone: string): Promise<string> {
+  const { data, error } = await supabase.rpc('join_challenge', { p_challenge_id: id, p_time_zone: timeZone });
+  if (error) throw toError(error);
+  return data as string;
+}
+
+/** Leaves during the first day; the stake comes back. */
+export async function leaveChallenge(id: string): Promise<void> {
+  const { error } = await supabase.rpc('leave_challenge', { p_challenge_id: id });
+  if (error) throw toError(error);
+}
+
+/**
+ * True during the first day, while people can still join or leave and the
+ * creator can edit or delete. Judged by the phone's date; the server judges
+ * by the creator's time zone and has the last word.
+ */
+export function isFirstDayOpen(c: Pick<Challenge, 'status' | 'start_date'>): boolean {
+  return (c.status === 'draft' || c.status === 'open' || c.status === 'active') && daysFromToday(c.start_date) >= 0;
 }
 
 export async function previewInvite(code: string): Promise<InvitePreview> {

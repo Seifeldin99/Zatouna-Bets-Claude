@@ -37,18 +37,18 @@ Zatouna lets you "bet on yourself": join a private challenge with friends, stake
 - **1.3** As a user, I want my balance and a history of every token change. *Done when:* each line shows date, amount and reason (e.g. "Stake: Read 20 min").
 
 ### 2. Private challenges
-- **2.1** As a creator, I want to set a title, the rule ("what counts"), how often (daily, or N times a week), a start date, a length (7 to 30 days), a stake, and how many misses are allowed. *Done when:* it's saved as **not started** and only I can see it.
-- **2.2** As a creator, I want to edit or delete my challenge before it starts. *Done when:* once it starts, nothing about it can change.
+- **2.1** As a creator, I want to set a title, the rule ("what counts"), how often (daily, or N times a week), a start date (today or later), a length (1 to 30 days), a stake, and how many misses are allowed. *Done when:* it's saved as **not started** (or **active** at once if it starts today) and only I can see it.
+- **2.2** As a creator, I want to edit or delete my challenge during its first day. *Done when:* from the second day, nothing about it can change. Deleting gives everyone their stake back.
 
 ### 3. Friends for each challenge
 - **3.1** As a creator, I want to invite friends with a link or a short code. *Done when:* the link opens the challenge in the app, and a challenge holds at most **10 members**.
 - **3.2** As a member, I want to see who's in and who's on track. *Done when:* friends see my check-in only once it's **accepted**, or once my day is over and **missed**. My rejected attempts, retries and referee cases stay private while my day is still open. Nobody outside the challenge can see anything about it.
-- **3.3** Invitees can only join **before** the start date.
+- **3.3** Invitees can join until the **end of the first day** (11:59pm on the start date, in the creator's time zone). A challenge starts at midnight on its start date, by itself.
 
 ### 4. Staking and forfeiting
 - **4.1** As an invitee, I want to join by staking tokens. *Done when:* the stake moves from my balance to the pool at once, and I can't join without enough tokens.
-- **4.2** As a member, I want to leave before the start and get my stake back.
-- **4.3** Quitting after the start, or missing more than the allowed check-ins, forfeits my stake. *Done when:* the app warns before I quit and shows "misses left."
+- **4.2** As a member, I want to leave during the first day and get my stake back.
+- **4.3** Quitting from the second day on, or missing more than the allowed check-ins, forfeits my stake. *Done when:* the app warns before I quit and shows "misses left."
 
 ### 5. Photo-plus-note check-ins
 - **5.1** As a member, I want to take a photo in the app and add a note (up to 280 characters) as proof. *Done when:* the photo comes from the camera only, never the gallery, so old photos can't be reused.

@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Pill, TokenAmount } from '@/components/ui';
 import { type Challenge, type ChallengeStatus, MAX_MEMBERS, statusLabel } from '@/lib/challenges';
-import { daysFromToday, formatDate, lastDay, relativeDay } from '@/lib/dates';
+import { dayCount, daysFromToday, formatDate, lastDay, relativeDay } from '@/lib/dates';
 import { colors, fonts, radius } from '@/theme';
 
 export function StatusPill({ status }: { status: ChallengeStatus }) {
@@ -16,7 +16,7 @@ export function timeline(c: Challenge): string {
   switch (c.status) {
     case 'draft':
     case 'open':
-      return `Starts ${relativeDay(c.start_date).toLowerCase()} · ${c.length_days} days`;
+      return `Starts ${relativeDay(c.start_date).toLowerCase()} · ${dayCount(c.length_days)}`;
     case 'active':
     case 'refereeing': {
       const day = daysFromToday(c.start_date) * -1 + 1;

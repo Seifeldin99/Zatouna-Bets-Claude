@@ -59,3 +59,8 @@ export function deviceTimeZone(): string {
     return 'UTC';
   }
 }
+
+/** "1 day", "7 days" */
+export function dayCount(n: number): string {
+  return `${n} ${n === 1 ? 'day' : 'days'}`;
+}

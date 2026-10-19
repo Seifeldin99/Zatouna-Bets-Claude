@@ -97,10 +97,11 @@ describe('creating a challenge', () => {
     assert.doesNotMatch(code, /[01IOL]/, 'no characters that look alike');
     const invite = await db.one(`select created_by, expires_at from invites where challenge_id = $1`, [challenge]);
     assert.equal(invite.created_by, creator);
-    const { starts } = await db.one(`select challenge_starts_at(start_date, time_zone) as starts from challenges where id = $1`, [
-      challenge,
-    ]);
-    assert.equal(invite.expires_at.getTime(), starts.getTime(), 'the invite stops working at the start');
+    const { closes } = await db.one(
+      `select challenge_join_closes_at(start_date, time_zone) as closes from challenges where id = $1`,
+      [challenge],
+    );
+    assert.equal(invite.expires_at.getTime(), closes.getTime(), 'the invite works until the end of the first day');
 
     const member = await db.one(`select user_id, time_zone, result from challenge_members where challenge_id = $1`, [
       challenge,
@@ -137,13 +138,14 @@ describe('creating a challenge', () => {
       [{ rule: 'x'.repeat(281) }, /280 characters at most/],
       [{ timesPerWeek: 0 }, /between 1 and 7 times a week/],
       [{ timesPerWeek: 8 }, /between 1 and 7 times a week/],
-      [{ lengthDays: 6 }, /between 7 and 30 days/],
-      [{ lengthDays: 31 }, /between 7 and 30 days/],
+      [{ lengthDays: 0 }, /between 1 and 30 days/],
+      [{ lengthDays: 31 }, /between 1 and 30 days/],
+      [{ lengthDays: 1, missesAllowed: 1 }, /misses allowed/],
       [{ missesAllowed: -1 }, /misses allowed/],
       [{ missesAllowed: 7 }, /misses allowed/],
       [{ stake: 0 }, /at least 1 token/],
       [{ timeZone: 'Mars/Olympus' }, /unknown time zone/],
-      [{ startDate: await today() }, /tomorrow or later/],
+      [{ startDate: await today(TZ, -1) }, /cannot be in the past/],
       [{ startDate: await today(TZ, 91) }, /at most 90 days away/],
     ];
     for (const [overrides, message] of cases) {
@@ -163,13 +165,24 @@ describe('creating a challenge', () => {
     await create(creator, { startDate: await today(east, 1), timeZone: east, stake: 10 });
     await create(creator, { startDate: await today(west, 1), timeZone: west, stake: 10 });
     await create(creator, { startDate: await today(east, 90), timeZone: east, stake: 10 });
-    await assert.rejects(create(creator, { startDate: await today(west), timeZone: west, stake: 10 }), /tomorrow or later/);
+    await create(creator, { startDate: await today(west), timeZone: west, stake: 10 });
+    await assert.rejects(create(creator, { startDate: await today(west, -1), timeZone: west, stake: 10 }), /in the past/);
   });
 
   test('misses allowed and length can go to their limits', async () => {
     const creator = await db.createUser('Ana');
-    await db.give(creator, 10);
+    await db.give(creator, 20);
     await create(creator, { lengthDays: 30, missesAllowed: 29, timesPerWeek: 1, stake: 10, startDate: await today(TZ, 90) });
+    await create(creator, { lengthDays: 1, missesAllowed: 0, stake: 10 });
+  });
+
+  test('a challenge for today is active at once; one for tomorrow waits', async () => {
+    const creator = await db.createUser('Ana');
+    await db.give(creator, 20);
+    const now = await create(creator, { startDate: await today(), stake: 10 });
+    const later = await create(creator, { startDate: await today(TZ, 1), stake: 10 });
+    assert.equal((await db.one(`select status from challenges where id = $1`, [now])).status, 'active');
+    assert.equal((await db.one(`select status from challenges where id = $1`, [later])).status, 'open');
   });
 
   test('invite codes are different every time', async () => {
@@ -278,24 +291,68 @@ describe('seeing challenges and invites', () => {
     await assert.rejects(preview(ben, null), /no challenge matches this code/);
   });
 
-  test('a started challenge cannot be joined through its invite', async () => {
-    const { challenge, code } = await setup();
+  test('after the first day nobody can join, leave, edit or delete', async () => {
+    const { creator, challenge, code } = await setup();
     const ben = await db.createUser('Ben');
     await db.give(ben, 50);
+    await db.join(ben, challenge);
+    const carl = await db.createUser('Carl');
+    await db.give(carl, 50);
 
+    // The invite alone has expired.
     await db.owner.query(`update invites set expires_at = now() - interval '1 minute' where challenge_id = $1`, [
       challenge,
     ]);
-    let p = await preview(ben, code);
+    let p = await preview(carl, code);
     assert.equal(p.can_join, false);
-    assert.equal(p.blocker, 'this challenge has already started');
+    assert.equal(p.blocker, 'joining closed at the end of the first day');
 
+    // The challenge is running and its first day is over.
     await db.owner.query(`update invites set expires_at = now() + interval '1 day' where challenge_id = $1`, [challenge]);
     await db.setStatus(challenge, 'active');
-    p = await preview(ben, code);
+    p = await preview(carl, code);
     assert.equal(p.can_join, false);
-    assert.equal(p.blocker, 'this challenge has already started');
-    await assert.rejects(db.join(ben, challenge), /not open for joining/);
+    assert.equal(p.blocker, 'joining closed at the end of the first day');
+    await assert.rejects(db.join(carl, challenge), /not open for joining/);
+    await assert.rejects(db.as(ben, (c) => c.query(`select leave_challenge($1)`, [challenge])), /only leave before/);
+    await assert.rejects(
+      db.as(creator, (c) => c.query(`select update_challenge($1, 'New', '', 7, current_date, 7, 0)`, [challenge])),
+      /cannot change after its first day/,
+    );
+    await assert.rejects(db.as(creator, (c) => c.query(`select delete_challenge($1)`, [challenge])), /cannot be deleted after its first day/);
+    assert.equal(await db.poolBalance(challenge), 100);
+  });
+
+  test('during the first day of a running challenge people join and leave, and the creator can delete', async () => {
+    const creator = await db.createUser('Ana');
+    await db.give(creator, 50);
+    const challenge = await create(creator, { startDate: await today(), stake: 50 });
+    const code = await inviteCode(challenge);
+    assert.equal((await db.one(`select status from challenges where id = $1`, [challenge])).status, 'active');
+
+    const ben = await db.createUser('Ben');
+    await db.give(ben, 50);
+    const p = await preview(ben, code);
+    assert.equal(p.status, 'active');
+    assert.equal(p.can_join, true);
+    assert.equal(typeof p.join_closes_at, 'string');
+    await db.join(ben, challenge);
+    assert.equal(await db.poolBalance(challenge), 100);
+
+    await db.as(ben, (c) => c.query(`select leave_challenge($1)`, [challenge]));
+    assert.equal(await db.balanceOf(ben), 50);
+    await db.join(ben, challenge);
+
+    await db.as(creator, (c) => c.query(`select update_challenge($1, 'Renamed', '', 7, current_date, 1, 0)`, [challenge]));
+    assert.equal((await db.one(`select title from challenges where id = $1`, [challenge])).title, 'Renamed');
+    await assert.rejects(
+      db.as(creator, (c) => c.query(`select update_challenge($1, 'Renamed', '', 7, current_date + 1, 7, 0)`, [challenge])),
+      /start date cannot change/,
+    );
+
+    await db.as(creator, (c) => c.query(`select delete_challenge($1)`, [challenge]));
+    assert.equal(await db.balanceOf(creator), 50);
+    assert.equal(await db.balanceOf(ben), 50);
   });
 
   test('a challenge holds at most 10 members, the creator included', async () => {
@@ -352,7 +409,7 @@ describe('editing a challenge', () => {
     assert.equal(c.misses_allowed, 2);
     assert.equal(c.stake, 50);
     const { expires } = await db.one(
-      `select (i.expires_at = challenge_starts_at(c.start_date, c.time_zone)) as expires
+      `select (i.expires_at = challenge_join_closes_at(c.start_date, c.time_zone)) as expires
        from invites i join challenges c on c.id = i.challenge_id where c.id = $1`,
       [challenge],
     );
@@ -376,12 +433,12 @@ describe('editing a challenge', () => {
   test('nothing changes once the challenge has started', async () => {
     const { creator, challenge } = await setup();
     await db.setStatus(challenge, 'active');
-    await assert.rejects(update(creator, challenge, await changes()), /cannot change once it has started/);
+    await assert.rejects(update(creator, challenge, await changes()), /cannot change after its first day/);
   });
 
   test('edits are checked like new challenges', async () => {
     const { creator, challenge } = await setup();
-    await assert.rejects(update(creator, challenge, { ...(await changes()), lengthDays: 40 }), /between 7 and 30/);
+    await assert.rejects(update(creator, challenge, { ...(await changes()), lengthDays: 40 }), /between 1 and 30/);
     await assert.rejects(update(creator, challenge, { ...(await changes()), missesAllowed: 14 }), /misses allowed/);
     await assert.rejects(update(creator, challenge, { ...(await changes()), title: '' }), /give the challenge a title/);
   });
@@ -454,7 +511,45 @@ describe('deleting a challenge', () => {
     await assert.rejects(del(ben, challenge), /only the creator can delete/);
     await assert.rejects(del(await db.createUser('Carl'), challenge), /only the creator can delete/);
     await db.setStatus(challenge, 'active');
-    await assert.rejects(del(creator, challenge), /cannot be deleted once it has started/);
+    await assert.rejects(del(creator, challenge), /cannot be deleted after its first day/);
     assert.equal(await db.poolBalance(challenge), 100);
+  });
+});
+
+describe('starting', () => {
+  test('moving the start date to today starts the challenge at once', async () => {
+    const { creator, challenge } = await setup();
+    const startToday = await today();
+    await db.as(creator, (c) =>
+      c.query(`select update_challenge($1, 'Read 20 minutes', '', 7, $2, 7, 0)`, [challenge, startToday]),
+    );
+    assert.equal((await db.one(`select status from challenges where id = $1`, [challenge])).status, 'active');
+  });
+
+  test('the scheduled job starts challenges whose start date has come', async () => {
+    const { creator, challenge } = await setup({ extra: 50 });
+    const startDue = async () => (await db.one(`select start_due_challenges() as n`)).n;
+    assert.equal(await startDue(), 0);
+    assert.equal((await db.one(`select status from challenges where id = $1`, [challenge])).status, 'open');
+
+    // Midnight has passed in Toronto: the start date is now today.
+    await db.owner.query(`update challenges set start_date = (now() at time zone 'America/Toronto')::date where id = $1`, [
+      challenge,
+    ]);
+    assert.equal(await startDue(), 1);
+    assert.equal((await db.one(`select status from challenges where id = $1`, [challenge])).status, 'active');
+    assert.equal(await startDue(), 0, 'nothing to start twice');
+
+    // A deleted challenge is left alone.
+    const gone = await create(creator);
+    await db.as(creator, (c) => c.query(`select delete_challenge($1)`, [gone]));
+    await db.owner.query(`update challenges set start_date = current_date - 1 where id = $1`, [gone]);
+    assert.equal(await startDue(), 0);
+    assert.equal((await db.one(`select status from challenges where id = $1`, [gone])).status, 'open');
+  });
+
+  test('the app cannot run the start job itself', async () => {
+    const ana = await db.createUser('Ana');
+    await assert.rejects(db.as(ana, (c) => c.query(`select start_due_challenges()`)), /permission denied/);
   });
 });

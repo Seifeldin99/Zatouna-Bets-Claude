@@ -26,9 +26,11 @@ import {
   getChallenge,
   howOften,
   inviteMessage,
+  isFirstDayOpen,
+  leaveChallenge,
   statusLabel,
 } from '@/lib/challenges';
-import { formatDate, lastDay } from '@/lib/dates';
+import { dayCount, formatDate, lastDay } from '@/lib/dates';
 import { goBack } from '@/lib/navigation';
 import { useLoad } from '@/lib/use-load';
 import { colors, fonts } from '@/theme';
@@ -63,9 +65,23 @@ function Details({ details }: { details: ChallengeDetails }) {
   const me = session?.user.id;
   const creator = members.find((m) => m.user_id === c.creator_id);
   const isCreator = me === c.creator_id;
-  const beforeStart = c.status === 'draft' || c.status === 'open';
+  const isMember = members.some((m) => m.user_id === me);
+  // During the first day people can still join or leave, and the creator can edit or delete.
+  const open = isFirstDayOpen(c);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function run(action: () => Promise<void>) {
+    setBusy(true);
+    setActionError(null);
+    try {
+      await action();
+      goBack();
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : String(e));
+      setBusy(false);
+    }
+  }
 
   function confirmDelete() {
     Alert.alert(
@@ -75,23 +91,16 @@ function Details({ details }: { details: ChallengeDetails }) {
         : `Your ${c.stake} tokens come back to you.`,
       [
         { text: 'Keep it', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            setDeleting(true);
-            setActionError(null);
-            try {
-              await deleteChallenge(c.id);
-              goBack();
-            } catch (e) {
-              setActionError(e instanceof Error ? e.message : String(e));
-              setDeleting(false);
-            }
-          },
-        },
+        { text: 'Delete', style: 'destructive', onPress: () => run(() => deleteChallenge(c.id)) },
       ],
     );
+  }
+
+  function confirmLeave() {
+    Alert.alert('Leave this challenge?', `Your ${c.stake} tokens come back to you.`, [
+      { text: 'Stay', style: 'cancel' },
+      { text: 'Leave', style: 'destructive', onPress: () => run(() => leaveChallenge(c.id)) },
+    ]);
   }
 
   return (
@@ -117,9 +126,9 @@ function Details({ details }: { details: ChallengeDetails }) {
       <View>
         <InfoRow label="Starts" value={formatDate(c.start_date)} />
         <InfoRow label="Ends" value={formatDate(lastDay(c.start_date, c.length_days))} />
-        <InfoRow label="Length" value={`${c.length_days} days`} />
+        <InfoRow label="Length" value={dayCount(c.length_days)} />
         <InfoRow label="How often" value={howOften(c.times_per_week)} />
-        <InfoRow label="Status" value={statusLabel(c.status)} tone={beforeStart ? 'normal' : 'green'} />
+        <InfoRow label="Status" value={statusLabel(c.status)} tone={c.status === 'active' ? 'green' : 'normal'} />
       </View>
 
       <View style={styles.section}>
@@ -137,14 +146,24 @@ function Details({ details }: { details: ChallengeDetails }) {
         </Card>
       </View>
 
-      {isCreator && beforeStart && inviteCode && <Invite code={inviteCode} details={details} />}
+      {isCreator && open && inviteCode && <Invite code={inviteCode} details={details} />}
 
-      {isCreator && beforeStart && (
+      {isCreator && open && (
         <View style={styles.section}>
           {actionError && <ErrorText>{actionError}</ErrorText>}
           <Button label="Edit challenge" variant="secondary" onPress={() => router.push(`/challenge/${c.id}/edit`)} />
-          <Button label="Delete challenge" variant="outline" onPress={confirmDelete} loading={deleting} />
-          <Hint>{"Changes and deleting are only possible before the start. The stake can't change."}</Hint>
+          <Button label="Delete challenge" variant="outline" onPress={confirmDelete} loading={busy} />
+          <Hint>
+            {`You can edit or delete until the end of ${formatDate(c.start_date)}, the first day. After that nothing changes. The stake can't change.`}
+          </Hint>
+        </View>
+      )}
+
+      {!isCreator && isMember && open && (
+        <View style={styles.section}>
+          {actionError && <ErrorText>{actionError}</ErrorText>}
+          <Button label="Leave challenge" variant="outline" onPress={confirmLeave} loading={busy} />
+          <Hint>{`You can leave and get your stake back until the end of ${formatDate(c.start_date)}, the first day.`}</Hint>
         </View>
       )}
     </>
@@ -182,7 +201,7 @@ function Invite({ code, details }: { code: string; details: ChallengeDetails }) 
         <Text style={styles.inviteText}>
           {full
             ? `The challenge is full (${MAX_MEMBERS} members).`
-            : `Friends enter this code in Zatouna, under Bets. Up to ${MAX_MEMBERS - members.length} more can join until midnight before the start.`}
+            : `Friends enter this code in Zatouna, under Bets. Up to ${MAX_MEMBERS - members.length} more can join until the end of ${formatDate(c.start_date)}.`}
         </Text>
         {shareError && <ErrorText>{shareError}</ErrorText>}
         <Button label="Share invite" onPress={share} disabled={full} />

@@ -137,10 +137,11 @@ export async function freshDb() {
       );
     },
     async createChallenge({ creator, stake, title = 'Read 20 minutes', status = 'open', fee = 10 }) {
+      const started = status !== 'draft' && status !== 'open';
       const row = await db.one(
-        `insert into challenges (creator_id, title, stake, app_fee_percent, status)
-         values ($1, $2, $3, $4, $5) returning id`,
-        [creator, title, stake, fee, status],
+        `insert into challenges (creator_id, title, stake, app_fee_percent, status, start_date)
+         values ($1, $2, $3, $4, $5, case when $6 then current_date - 1 else current_date + 1 end) returning id`,
+        [creator, title, stake, fee, status, started],
       );
       return row.id;
     },
@@ -151,8 +152,14 @@ export async function freshDb() {
         client,
       );
     },
+    // Moves a challenge along. "active" and later also put the start date in
+    // the past, so the first day (when people may still join or leave) is over.
     async setStatus(challengeId, status) {
-      await owner.query(`update challenges set status = $1 where id = $2`, [status, challengeId]);
+      const started = status !== 'draft' && status !== 'open';
+      await owner.query(
+        `update challenges set status = $1, start_date = case when $3 then current_date - 1 else start_date end where id = $2`,
+        [status, challengeId, started],
+      );
     },
     async setResult(challengeId, userId, result) {
       await owner.query(`update challenge_members set result = $1 where challenge_id = $2 and user_id = $3`, [
