@@ -158,10 +158,16 @@ export async function freshDb() {
     },
     // Moves a challenge along. "active" and later also put the start date in
     // the past, so the first day (when people may still join or leave) is over.
+    // "Yesterday" is judged in the challenge's own time zone, like the server
+    // does; the database session runs on UTC, so current_date would be a day
+    // ahead of Toronto in the evening there.
     async setStatus(challengeId, status) {
       const started = status !== 'draft' && status !== 'open';
       await owner.query(
-        `update challenges set status = $1, start_date = case when $3 then current_date - 1 else start_date end where id = $2`,
+        `update challenges
+         set status = $1,
+             start_date = case when $3 then (now() at time zone time_zone)::date - 1 else start_date end
+         where id = $2`,
         [status, challengeId, started],
       );
     },
