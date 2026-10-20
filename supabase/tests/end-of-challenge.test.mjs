@@ -413,8 +413,10 @@ describe('the payout', () => {
     const ben = await user('Ben');
     const challenge = await newChallenge(ana, { lengthDays: 7 });
     await joinAs(ben, challenge);
+    // Quitting starts on the second day.
+    await shiftBack(challenge, 1);
     await db.as(ben, (c) => c.query(`select quit_challenge($1)`, [challenge]));
-    await shiftBack(challenge, 8);
+    await shiftBack(challenge, 7);
     await settings({ call: 0, finalize: 0 });
     await finish();
     const res = await results(ana, challenge);
