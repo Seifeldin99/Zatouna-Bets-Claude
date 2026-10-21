@@ -364,8 +364,9 @@ describe('seeing challenges and invites', () => {
     assert.equal(p.blocker, 'joining closed at the end of the first day');
     await assert.rejects(db.join(carl, challenge), /not open for joining/);
     await assert.rejects(db.as(ben, (c) => c.query(`select leave_challenge($1)`, [challenge])), /only leave before/);
+    const startToday = await today();
     await assert.rejects(
-      db.as(creator, (c) => c.query(`select update_challenge($1, 7, current_date, 7, 0)`, [challenge])),
+      db.as(creator, (c) => c.query(`select update_challenge($1, 7, $2, 7, 0)`, [challenge, startToday])),
       /cannot change after its first day/,
     );
     await assert.rejects(db.as(creator, (c) => c.query(`select delete_challenge($1)`, [challenge])), /cannot be deleted after its first day/);
@@ -392,10 +393,13 @@ describe('seeing challenges and invites', () => {
     assert.equal(await db.balanceOf(ben), 50);
     await db.join(ben, challenge);
 
-    await db.as(creator, (c) => c.query(`select update_challenge($1, 7, current_date, 1, 0)`, [challenge]));
+    // Dates are the creator's own (Toronto), as the app sends them.
+    const startToday = await today();
+    const tomorrow = await today(TZ, 1);
+    await db.as(creator, (c) => c.query(`select update_challenge($1, 7, $2, 1, 0)`, [challenge, startToday]));
     assert.equal((await db.one(`select length_days from challenges where id = $1`, [challenge])).length_days, 1);
     await assert.rejects(
-      db.as(creator, (c) => c.query(`select update_challenge($1, 7, current_date + 1, 7, 0)`, [challenge])),
+      db.as(creator, (c) => c.query(`select update_challenge($1, 7, $2, 7, 0)`, [challenge, tomorrow])),
       /start date cannot change/,
     );
 

@@ -14,7 +14,10 @@
     ],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.zatouna.app"
+      "bundleIdentifier": "com.zatouna.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.zatouna.app",
