@@ -24,8 +24,11 @@ afterEach(async () => {
 
 const TZ = 'America/Toronto';
 
-async function today(tz = TZ) {
-  const { d } = await db.one(`select to_char((now() at time zone $1)::date, 'YYYY-MM-DD') as d`, [tz]);
+async function today(tz = TZ, plusDays = 0) {
+  const { d } = await db.one(`select to_char((now() at time zone $1)::date + $2::int, 'YYYY-MM-DD') as d`, [
+    tz,
+    plusDays,
+  ]);
   return d;
 }
 
@@ -48,15 +51,18 @@ async function user(name, tokens = 100, opts = {}) {
   return id;
 }
 
-// A Pet Cat challenge starting today, created (and joined) by `creator`.
-async function newChallenge(creator, { lengthDays = 1, missesAllowed = 0, stake = 100, times = 7 } = {}) {
+// A Pet Cat challenge starting today (Toronto time), created (and joined) by `creator`.
+async function newChallenge(
+  creator,
+  { lengthDays = 1, missesAllowed = 0, stake = 100, times = 7, startInDays = 0 } = {},
+) {
   return db.as(
     creator,
     async (c) =>
       (
         await c.query(`select create_challenge('pet_cat', $1, $2, $3, $4, $5, $6) as id`, [
           times,
-          await today(),
+          await today(TZ, startInDays),
           lengthDays,
           stake,
           missesAllowed,
@@ -141,7 +147,10 @@ describe('when a challenge ends', () => {
     const ana = await user('Ana');
     const ben = await user('Ben');
     const chloe = await user('Chloe');
-    const challenge = await newChallenge(ana, { lengthDays: 3 });
+    // Starts tomorrow: joining closes once your own first day is over, and
+    // Tokyo is a day ahead of Toronto from 15:00 UTC until Toronto's midnight,
+    // so a challenge for today would refuse Chloe for most of the day.
+    const challenge = await newChallenge(ana, { lengthDays: 3, startInDays: 1 });
     await joinAs(ben, challenge, 'Pacific/Honolulu');
     await joinAs(chloe, challenge, 'Asia/Tokyo');
     const row = await db.one(
@@ -413,8 +422,10 @@ describe('the payout', () => {
     const ben = await user('Ben');
     const challenge = await newChallenge(ana, { lengthDays: 7 });
     await joinAs(ben, challenge);
+    // Quitting starts on the second day.
+    await shiftBack(challenge, 1);
     await db.as(ben, (c) => c.query(`select quit_challenge($1)`, [challenge]));
-    await shiftBack(challenge, 8);
+    await shiftBack(challenge, 7);
     await settings({ call: 0, finalize: 0 });
     await finish();
     const res = await results(ana, challenge);

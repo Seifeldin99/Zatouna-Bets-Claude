@@ -113,6 +113,10 @@ function Details({ page, reload }: { page: Page; reload: () => Promise<void> }) 
   const quitOf = (userId: string) => results?.members.find((m) => m.user_id === userId)?.quit ?? false;
   // During the first day people can still join or leave, and the creator can edit or delete.
   const open = isFirstDayOpen(c);
+  // Once you have checked in you can't leave, and once anyone has, the creator can't delete.
+  // Friends' unaccepted photos don't show here, so the server has the last word.
+  const checkedIn = !!mine?.days.some((d) => d.status !== 'open' && d.status !== 'none' && d.status !== 'future');
+  const someoneCheckedIn = checkedIn || !!progress?.members.some((m) => m.days_done > 0);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -259,9 +263,13 @@ function Details({ page, reload }: { page: Page; reload: () => Promise<void> }) 
         <View style={styles.section}>
           {actionError && <ErrorText>{actionError}</ErrorText>}
           <Button label="Edit challenge" variant="secondary" onPress={() => router.push(`/challenge/${c.id}/edit`)} />
-          <Button label="Delete challenge" variant="outline" onPress={confirmDelete} loading={busy} />
+          {!someoneCheckedIn && (
+            <Button label="Delete challenge" variant="outline" onPress={confirmDelete} loading={busy} />
+          )}
           <Hint>
-            {`You can edit or delete until the end of ${formatDate(c.start_date)}, the first day. After that nothing changes. The stake can't change.`}
+            {someoneCheckedIn
+              ? `You can edit until the end of ${formatDate(c.start_date)}, the first day. Someone has checked in, so the challenge can't be deleted any more. The stake can't change.`
+              : `You can edit or delete until the end of ${formatDate(c.start_date)}, the first day, as long as nobody has checked in. After that nothing changes. The stake can't change.`}
           </Hint>
         </View>
       )}
@@ -269,8 +277,12 @@ function Details({ page, reload }: { page: Page; reload: () => Promise<void> }) 
       {!isCreator && isMember && open && (
         <View style={styles.section}>
           {actionError && <ErrorText>{actionError}</ErrorText>}
-          <Button label="Leave challenge" variant="outline" onPress={confirmLeave} loading={busy} />
-          <Hint>{`You can leave and get your stake back until the end of ${formatDate(c.start_date)}, the first day.`}</Hint>
+          {!checkedIn && <Button label="Leave challenge" variant="outline" onPress={confirmLeave} loading={busy} />}
+          <Hint>
+            {checkedIn
+              ? "You've checked in, so you can't leave this challenge any more. From the second day you can quit, which forfeits your stake."
+              : `You can leave and get your stake back until the end of ${formatDate(c.start_date)}, the first day, as long as you haven't checked in.`}
+          </Hint>
         </View>
       )}
 
