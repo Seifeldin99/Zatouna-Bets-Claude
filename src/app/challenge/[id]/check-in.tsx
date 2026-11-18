@@ -6,6 +6,7 @@ import { Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native'
 import { Button, Card, ErrorText, Hint, InfoBox, Loading, Screen, ScreenHeader, TextField } from '@/components/ui';
 import { getChallenge } from '@/lib/challenges';
 import { NOTE_MAX, type Outcome, type Photo, type SubmitStage, submitCheckIn } from '@/lib/check-ins';
+import { todayYmd } from '@/lib/dates';
 import { goBack } from '@/lib/navigation';
 import { useLoad } from '@/lib/use-load';
 import { colors, fonts, radius } from '@/theme';
@@ -82,7 +83,9 @@ export default function CheckInScreen() {
           <Card style={styles.center}>
             <Text style={styles.resultTitle}>Accepted</Text>
             <Text style={styles.reason}>{step.verdict.reason}</Text>
-            <Text style={styles.stageText}>Today counts. See you tomorrow.</Text>
+            <Text style={styles.stageText}>
+              {step.verdict.day < todayYmd() ? 'Yesterday counts. Today is still open.' : 'Today counts. See you tomorrow.'}
+            </Text>
           </Card>
           <Button label="Done" onPress={back} />
         </>
@@ -101,8 +104,8 @@ export default function CheckInScreen() {
             onPress={() => router.replace(`/challenge/${id}/referee?checkIn=${step.verdict.check_in_id}`)}
           />
           <Hint>
-            You can retry as often as you like until midnight. Think the AI got it wrong? The referee looks at your
-            photo and decides; until then the day is not counted as missed.
+            You can retry as often as you like while the countdown runs. Think the AI got it wrong? The referee looks
+            at your photo and decides; until then the day is not counted as missed.
           </Hint>
           <Button label="Close" variant="secondary" onPress={back} />
         </>

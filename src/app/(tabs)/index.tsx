@@ -28,7 +28,7 @@ function needsMe(t: Today | undefined): number {
 
 export default function HomeScreen() {
   const { session } = useAuth();
-  const { data, error } = useLoad(loadHome);
+  const { data, error, reload } = useLoad(loadHome);
   const today = new Date()
     .toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
     .toUpperCase();
@@ -81,7 +81,7 @@ export default function HomeScreen() {
           </>
         )}
         {nextUp.map((c) => (
-          <ChallengeCard key={c.id} challenge={c} today={todayOf(c.id)?.status} />
+          <ChallengeCard key={c.id} challenge={c} today={todayOf(c.id)} onDeadline={reload} />
         ))}
       </View>
     </Screen>

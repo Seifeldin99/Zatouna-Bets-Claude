@@ -1,9 +1,10 @@
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { Countdown } from '@/components/countdown';
 import { Pill, TokenAmount } from '@/components/ui';
 import { type Challenge, type ChallengeStatus, type Outcome, MAX_MEMBERS, outcomeLine, statusLabel } from '@/lib/challenges';
-import { type TodayStatus, todayLine } from '@/lib/check-ins';
+import { type Today, dayStillOpen, deadlineOf, todayLine } from '@/lib/check-ins';
 import { dayCount, daysFromToday, formatDate, lastDay, relativeDay } from '@/lib/dates';
 import { colors, fonts, radius } from '@/theme';
 
@@ -35,13 +36,18 @@ export function ChallengeCard({
   challenge,
   today,
   outcome,
+  onDeadline,
 }: {
   challenge: Challenge;
-  today?: TodayStatus;
+  /** Where you stand today, for a running challenge. */
+  today?: Today;
   /** Your result, once the challenge is completed. */
   outcome?: Outcome;
+  /** Called when your day or its grace period ends, so the list can refresh. */
+  onDeadline?: () => void;
 }) {
-  const line = outcome ? outcomeLine(outcome) : today ? todayLine(today) : null;
+  const line = outcome ? outcomeLine(outcome) : today ? todayLine(today.status, today.in_grace) : null;
+  const deadline = !outcome && today && dayStillOpen(today.status) ? deadlineOf(today) : null;
   return (
     <Pressable
       accessibilityRole="button"
@@ -55,9 +61,19 @@ export function ChallengeCard({
       </View>
       <Text style={styles.timeline}>{timeline(challenge)}</Text>
       {line && (
-        <Text style={[styles.today, line.tone === 'accent' && styles.todayAccent, line.tone === 'danger' && styles.todayDanger]}>
-          {line.text}
-        </Text>
+        <View style={styles.todayRow}>
+          <Text
+            style={[
+              styles.today,
+              line.tone === 'accent' && styles.todayAccent,
+              line.tone === 'danger' && styles.todayDanger,
+            ]}>
+            {line.text}
+          </Text>
+          {deadline && (
+            <Countdown compact endsAt={deadline.endsAt} graceEndsAt={deadline.graceEndsAt} onPhaseChange={onDeadline} />
+          )}
+        </View>
       )}
       <View style={styles.bottom}>
         <TokenAmount amount={challenge.stake} />
@@ -84,7 +100,8 @@ const styles = StyleSheet.create({
   top: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
   title: { flex: 1, fontFamily: fonts.sansSemiBold, fontSize: 18, color: colors.text },
   timeline: { fontFamily: fonts.sans, fontSize: 14, color: colors.textSecondary },
-  today: { fontFamily: fonts.sansSemiBold, fontSize: 14, color: colors.textSecondary },
+  todayRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  today: { flex: 1, fontFamily: fonts.sansSemiBold, fontSize: 14, color: colors.textSecondary },
   todayAccent: { color: colors.accent },
   todayDanger: { color: colors.danger },
   bottom: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },

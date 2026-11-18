@@ -54,6 +54,7 @@ Zatouna lets you "bet on yourself": join a private challenge with friends, stake
 - **5.1** As a member, I want to take a photo in the app and add a note (up to 280 characters) as proof. *Done when:* the photo comes from the camera only, never the gallery, so old photos can't be reused.
 - **5.2** Each member's day runs on **their own time zone**, so the habit fits their routine. Your time zone is fixed when you join, so changing your phone's clock can't buy extra hours.
 - **5.3** If you haven't completed a day by midnight, you get a **grace period** of 1 hour (a server setting) to still complete it: a check-in between midnight and 1:00am counts for the day before, as long as that day still needs one (it isn't done, and its week isn't complete yet). Until then the day shows as still open, to you and your friends; after that it is missed. Once the day before is done, a check-in counts for the new day as usual.
+- **5.4** As a member, I want a **countdown** on every running challenge showing how long I have left to complete today, on the challenge screen and on the Home cards. *Done when:* it counts down to my midnight (red in the last hour), then through the grace period when the day isn't done, and disappears once the day is done.
 
 ### 6. AI check
 - **6.1** As a member, I want each check-in judged within about a minute, with a one-line reason. *Likely okay* means **accepted**. *Likely not okay* and *unsure* both mean **rejected**, and so does an AI that fails or is too slow.

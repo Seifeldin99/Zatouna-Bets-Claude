@@ -95,6 +95,9 @@ export type ResultMember = {
   mine: boolean;
   result: MemberResult;
   quit: boolean;
+  /** When this member's own last day ended, grace period included, and until when they could call the referee. Missing on an older server. */
+  ends_at?: string;
+  calls_close_at?: string;
   /** Null until the challenge is settled, and for members who forfeited. */
   payout: number | null;
 };
