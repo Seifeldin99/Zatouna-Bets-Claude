@@ -52,14 +52,15 @@ Zatouna lets you "bet on yourself": join a private challenge with friends, stake
 
 ### 5. Photo-plus-note check-ins
 - **5.1** As a member, I want to take a photo in the app and add a note (up to 280 characters) as proof. *Done when:* the photo comes from the camera only, never the gallery, so old photos can't be reused.
-- **5.2** Each member's day runs on **their own time zone**, so the habit fits their routine. Your time zone is fixed when you join, so changing your phone's clock can't buy extra hours. A check-in after midnight your time doesn't count for that day.
+- **5.2** Each member's day runs on **their own time zone**, so the habit fits their routine. Your time zone is fixed when you join, so changing your phone's clock can't buy extra hours.
+- **5.3** If you haven't completed a day by midnight, you get a **grace period** of 1 hour (a server setting) to still complete it: a check-in between midnight and 1:00am counts for the day before, as long as that day still needs one (it isn't done, and its week isn't complete yet). Until then the day shows as still open, to you and your friends; after that it is missed. Once the day before is done, a check-in counts for the new day as usual.
 
 ### 6. AI check
 - **6.1** As a member, I want each check-in judged within about a minute, with a one-line reason. *Likely okay* means **accepted**. *Likely not okay* and *unsure* both mean **rejected**, and so does an AI that fails or is too slow.
-- **6.2** As a member whose check-in was rejected, I want two buttons: **Retry** (take a new photo and note) and **Referee**. *Done when:* both appear on every rejected check-in. I can retry **as many times as I like** until my midnight. The day counts as soon as one check-in is accepted.
+- **6.2** As a member whose check-in was rejected, I want two buttons: **Retry** (take a new photo and note) and **Referee**. *Done when:* both appear on every rejected check-in. I can retry **as many times as I like** until my midnight, or until the end of my grace period (story 5.3). The day counts as soon as one check-in is accepted.
 
 ### 7. Referee (customer support)
-- **7.1** As a member whose check-in was rejected, I want to call the referee on **my own** check-in with a short explanation. *Done when:* the request reaches the support queue with the photo, note, rule and AI reason. I can do this once per check-in, within 24 hours of the verdict, even after my midnight has passed. On the **last day** of the challenge the call closes **1 hour after my last midnight** (a server setting), so the payout isn't held up. While the case is open, the day shows as **waiting for referee**, not as missed.
+- **7.1** As a member whose check-in was rejected, I want to call the referee on **my own** check-in with a short explanation. *Done when:* the request reaches the support queue with the photo, note, rule and AI reason. I can do this once per check-in, within 24 hours of the verdict, even after my midnight has passed. On the **last day** of the challenge the call closes **1 hour after my last day ends** (a server setting): my last midnight, or the end of my grace period if the day wasn't done by then. That way the payout isn't held up. While the case is open, the day shows as **waiting for referee**, not as missed.
 - **7.2** As support (the admin, during testing), I want a queue of referee cases where I can accept or reject each one with a reason. *Done when:* the member sees the result and the reason, and the decision is final.
 - **7.3** Every case is decided before settlement. A case support hasn't decided counts as accepted **48 hours after it was sent, or 6 hours after the challenge ends, whichever comes first** (server settings). The queue shows the case that expires soonest first, with a countdown. The app profits when stakes are lost, so ties go to the member.
 
@@ -69,7 +70,7 @@ Zatouna lets you "bet on yourself": join a private challenge with friends, stake
 - **8.3** Only whole tokens are paid out. Rounding leftovers go to the app.
 - **8.4** As a member, I want a results screen showing who finished, who forfeited, the app fee, and what I received.
 - **8.5** Settlement happens **exactly once** per challenge, even if the app or server retries.
-- **8.6** The payout runs **the moment the challenge ends**, unless something can still change the result: a photo still being checked, a rejected last-day photo whose owner can still call the referee (up to 1 hour after their last midnight), or an open referee case. Then it runs as soon as that is settled, and **6 hours after the end** at the latest (any case still open then counts as accepted). Until then the challenge shows "Ended" with what it waits for.
+- **8.6** The payout runs **the moment the challenge ends**, unless something can still change the result: a member who hasn't completed their last day and is still in their grace period (story 5.3), a photo still being checked, a rejected last-day photo whose owner can still call the referee (up to 1 hour after their last day ends), or an open referee case. When everyone's last day is already done, the challenge ends at the last member's midnight and nobody waits for the grace period. Then it runs as soon as that is settled, and **6 hours after the end** at the latest (any case still open then counts as accepted). Until then the challenge shows "Ended" with what it waits for.
 - **8.7** As a user, I want to tap my token balance and see every change to it: date, amount and reason (story 1.3).
 
 *Example:* 4 members stake 100 each, and 3 finish. Forfeited: 100. App fee: 10. Each finisher gets 100 + 30 = 130. During testing (0% fee): 100 ÷ 3 = 33 each, so each finisher gets 133 and the 1 leftover token goes to the app.
@@ -84,4 +85,4 @@ The goal is that testers will eventually buy tokens with real money, and the fre
 Buying, cashing out or transferring tokens, custom challenges and rules (only the seven templates for now), public challenges, leaderboards, chat, video or gallery uploads, non-email logins, and web or desktop versions.
 
 ## Open questions for you
-None right now. Your answers so far are written into the stories above. We'll revisit stake size, retries and the grace period after testing.
+None right now. Your answers so far are written into the stories above. We'll revisit stake size and retries after testing. (The grace period was added on 2026-11-18, story 5.3.)

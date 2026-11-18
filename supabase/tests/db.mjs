@@ -53,8 +53,10 @@ export async function startServer() {
     await t.query(readFileSync(join(migrationsDir, file), 'utf8'));
   }
   // Tests start every account at 0 so their balance arithmetic stays readable;
-  // the welcome gift has tests of its own that switch it back on.
-  await t.query(`update app_settings set welcome_tokens = 0`);
+  // the welcome gift has tests of its own that switch it back on. The grace
+  // period after midnight is off too, so a day ends at midnight whatever the
+  // clock says when the tests run; grace-period.test.mjs switches it on.
+  await t.query(`update app_settings set welcome_tokens = 0, grace_minutes = 0`);
   await t.end();
 
   server = { dir, proc, config, admin };
