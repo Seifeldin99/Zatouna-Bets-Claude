@@ -10,7 +10,7 @@
    camera,               ├─ Database      Postgres: all records and the token ledger
    notifications         ├─ Storage       private bucket for check-in photos
                          ├─ Edge Functions small server programs: joining, settling, AI check
-                         └─ Cron          a timer that runs jobs: settle, reminders
+                         └─ Cron          a timer that runs jobs: start, settle
                                    │
                                    └──►  AI vision model (called only from the server)
 ```
@@ -26,7 +26,7 @@ A **table** is like a spreadsheet tab; each row is one record.
 
 | Table | One row is… | Key fields |
 |---|---|---|
-| `profiles` | a user | name, time zone, reminder time, **role** (member / support / admin) |
+| `profiles` | a user | name, time zone, **role** (member / support / admin) |
 | `challenge_templates` | the seven preset challenges, changed only by migrations | key, title, goal, recommendation, rule |
 | `challenges` | a challenge, always made from a template | creator, template, title and rule (copied from the template), schedule, start date, length, stake, misses allowed, **app fee %** (copied in at creation), **status** |
 | `challenge_members` | one person in one challenge | challenge, user, joined at, **time zone** (fixed at joining), **result** (in progress / finished / forfeited) |
@@ -35,7 +35,6 @@ A **table** is like a spreadsheet tab; each row is one record.
 | `check_ins` | one photo and note (a retry is a new row) | member, the day it counts for, attempt number, photo path, note, **state** (pending / accepted / rejected) |
 | `ai_checks` | the AI's verdict on a check-in | check-in, label (likely okay / unsure / likely not okay / failed), one-line reason, model name, time taken |
 | `referee_cases` | a request for support to overrule the AI | check-in, who asked, the day, explanation, decision (open / accepted / rejected), reason, decided by (empty for the 48-hour rule), decided at |
-| `push_tokens` | a phone's notification address | user, token |
 | `ledger_accounts`, `ledger_transactions`, `ledger_entries` | the token ledger | see below |
 
 A challenge's **status** only ever moves forward: *draft → open* (can join) *→ active* (started) *→ refereeing* (every member's last day is over, grace period included; up to 6h for open referee cases) *→ settled*. Because each member runs on their own time zone, a challenge ends only when the member furthest west has finished their last day. A member whose last day is not done by their midnight, and who could still complete it, keeps the challenge waiting until their grace period ends or they complete the day (`member_ends_at`); everyone else's challenge ends at their midnight.
@@ -102,6 +101,15 @@ Everything about progress is computed from `check_ins` on the server (`challenge
 - Each **week** is seven days from the challenge's start date; the last week can be shorter. A week needs `ceil(times a week × days in the week ÷ 7)` accepted days: a daily challenge needs every day, "3 times a week" needs 3, and a 3-day last week of a "3 times a week" challenge needs 2.
 - A week counts as **short** as soon as the days still open cannot reach that number. Every day short is one miss. More misses than the challenge allows puts the member **out**: no more check-ins, and settlement treats them as forfeited.
 - Friends see each member's days only as done, missed, open or ahead. Rejected attempts, retries and notes stay private while the day is open (story 3.2).
+
+## Reminders
+
+Reminders (product story 9) are scheduled on the phone itself, as local notifications. There is no push server, so nothing extra is set up with Apple or Google, and nothing about reminders is stored in the database.
+
+- **What is stored where:** the daily reminder time and the challenges switched off live on the phone, per account. A new phone or a reinstall starts again at 7:00 PM with every challenge on.
+- **How the plan is made:** whenever the app opens, comes back to the front, or gets a check-in result, it asks the server where you stand (`my_today`) and replaces every waiting reminder with a fresh plan for the next 7 days (`src/lib/reminder-plan.ts`). A day that is done, being checked, or with the referee gets no reminders; a rejected day keeps them. In a challenge that needs N days a week, the rest of a week goes quiet once its N days are done.
+- **The three reminders for an owed day:** the daily one at the chosen time, a last-chance one 2 hours before the member's midnight, and one at midnight while the grace period still lets them finish the day.
+- **Limits:** a phone that hasn't opened the app for 7 days stops reminding until it is opened again, and a check-in made on another phone only clears this phone's reminders once this phone opens the app. Notifications that depend on someone else (a friend checked in, a referee decided) would need real push notifications from the server later.
 
 ## Permissions
 

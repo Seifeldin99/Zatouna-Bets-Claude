@@ -4,10 +4,12 @@ import { useCallback, useRef, useState } from 'react';
 import { Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Button, Card, ErrorText, Hint, InfoBox, Loading, Screen, ScreenHeader, TextField } from '@/components/ui';
+import { useAuth } from '@/lib/auth';
 import { getChallenge } from '@/lib/challenges';
 import { NOTE_MAX, type Outcome, type Photo, type SubmitStage, submitCheckIn } from '@/lib/check-ins';
 import { todayYmd } from '@/lib/dates';
 import { goBack } from '@/lib/navigation';
+import { refreshReminders } from '@/lib/reminders';
 import { useLoad } from '@/lib/use-load';
 import { colors, fonts, radius } from '@/theme';
 
@@ -29,6 +31,7 @@ export default function CheckInScreen() {
   const load = useCallback(() => getChallenge(id), [id]);
   const { data } = useLoad(load);
   const [step, setStep] = useState<Step>({ kind: 'camera' });
+  const userId = useAuth().session?.user.id;
   const [note, setNote] = useState('');
   const back = () => goBack(`/challenge/${id}`);
 
@@ -37,6 +40,8 @@ export default function CheckInScreen() {
     try {
       const verdict = await submitCheckIn(id, photo, note, (stage) => setStep({ kind: 'sending', photo, stage }));
       setStep({ kind: 'result', verdict });
+      // A done day drops its reminders; a rejected one keeps them.
+      if (userId) void refreshReminders(userId);
     } catch (e) {
       setStep({ kind: 'failed', photo, message: e instanceof Error ? e.message : String(e) });
     }

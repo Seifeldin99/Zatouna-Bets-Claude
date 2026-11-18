@@ -78,6 +78,11 @@ Zatouna lets you "bet on yourself": join a private challenge with friends, stake
 
 ### 9. Reminders
 - **9.1** As a member, I want a notification at a time I choose on days I still owe a check-in, plus a "last chance" one two hours before my midnight. *Done when:* none is sent once I've checked in, and I can turn them off per challenge.
+  - The time is set once in Settings for all my challenges: 7:00 PM to start with, in half-hour steps from 5:00 AM to 9:30 PM.
+  - Each challenge has its own Reminders switch on its page.
+  - While the grace period runs (story 5.3), I also get one at midnight saying I can still finish the day.
+  - Tapping a reminder opens that challenge.
+  - The app asks for notification permission the first time it has a reminder to schedule. If notifications are off, Settings says so and links to the phone's settings.
 
 ## Later: real money (not in the MVP)
 The goal is that testers will eventually buy tokens with real money, and the free admin gifts will stop. The data design leaves room for purchases and the app fee, so the code won't need rewriting. **This must not be built before a lawyer signs off.** A stake that can be lost, plus a house cut of the losses, is the textbook shape of gambling. Apple only allows real-money gaming from licensed operators, in the places they're licensed. Apple also says purchased credits may not expire, which conflicts with losing bought tokens. Google Play has similar rules. The first markets are the **US and Canada**. Both regulate this by state or province, so the lawyer has to check each one.

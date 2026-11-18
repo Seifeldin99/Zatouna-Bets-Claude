@@ -1,11 +1,19 @@
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { AppState, Linking, StyleSheet, Text, View } from 'react-native';
 
-import { Button, Card, Hint, Screen, SectionLabel, Title } from '@/components/ui';
+import { Button, Card, Hint, Notice, Screen, SectionLabel, Stepper, Title } from '@/components/ui';
 import { displayNameOf, useAuth } from '@/lib/auth';
 import { amSupport, refereeQueue } from '@/lib/referee';
+import { EARLIEST_MINUTES, LATEST_MINUTES, formatMinutes } from '@/lib/reminder-plan';
+import {
+  askForNotifications,
+  loadReminderSettings,
+  notificationAccess,
+  refreshReminders,
+  setReminderTime,
+} from '@/lib/reminders';
 import { supabase } from '@/lib/supabase';
 import { useLoad } from '@/lib/use-load';
 import { colors, fonts } from '@/theme';
@@ -46,6 +54,8 @@ export default function SettingsScreen() {
         </Card>
       </View>
 
+      {session && <Reminders userId={session.user.id} />}
+
       {support?.support && (
         <View style={styles.section}>
           <SectionLabel>Referee</SectionLabel>
@@ -63,6 +73,68 @@ export default function SettingsScreen() {
 
       <Text style={styles.version}>Version {Constants.expoConfig?.version}</Text>
     </Screen>
+  );
+}
+
+/** Half-hour steps for the reminder time. */
+const STEP_MINUTES = 30;
+
+/** The daily reminder's time, and a way to turn notifications on when the phone has them off. */
+function Reminders({ userId }: { userId: string }) {
+  const load = useCallback(
+    async () => ({ settings: await loadReminderSettings(userId), access: await notificationAccess() }),
+    [userId],
+  );
+  const { data, reload } = useLoad(load);
+  const [minutes, setMinutes] = useState<number | null>(null);
+  const [asking, setAsking] = useState(false);
+
+  // Coming back from the phone's settings may have changed the permission.
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void reload();
+    });
+    return () => subscription.remove();
+  }, [reload]);
+
+  if (!data) return null;
+  const shown = minutes ?? data.settings.minutes;
+  const step = (shown - EARLIEST_MINUTES) / STEP_MINUTES;
+
+  function change(nextStep: number) {
+    const next = EARLIEST_MINUTES + nextStep * STEP_MINUTES;
+    setMinutes(next);
+    void setReminderTime(userId, next);
+  }
+
+  async function turnOn() {
+    setAsking(true);
+    await askForNotifications();
+    await refreshReminders(userId);
+    await reload();
+    setAsking(false);
+  }
+
+  return (
+    <View style={styles.section}>
+      <SectionLabel>Reminders</SectionLabel>
+      <Stepper
+        label="Daily reminder"
+        display={formatMinutes(shown)}
+        value={step}
+        min={0}
+        max={(LATEST_MINUTES - EARLIEST_MINUTES) / STEP_MINUTES}
+        onChange={change}
+        hint="On days you still owe a check-in, you get this reminder plus a last-chance one 2 hours before midnight. To switch them off for one challenge, open it and use its Reminders switch."
+      />
+      {data.access === 'not_asked' && <Button label="Turn on reminders" onPress={turnOn} loading={asking} />}
+      {data.access === 'blocked' && (
+        <>
+          <Notice>{"Notifications are off for Zatouna in your phone's settings, so reminders can't show."}</Notice>
+          <Button label="Open phone settings" variant="secondary" onPress={() => Linking.openSettings()} />
+        </>
+      )}
+    </View>
   );
 }
 

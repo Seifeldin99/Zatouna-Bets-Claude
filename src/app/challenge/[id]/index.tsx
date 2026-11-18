@@ -1,7 +1,7 @@
 import * as Clipboard from 'expo-clipboard';
 import { router, useLocalSearchParams } from 'expo-router';
-import { type ReactNode, useCallback, useState } from 'react';
-import { Alert, RefreshControl, Share, StyleSheet, Text, View } from 'react-native';
+import { type ReactNode, useCallback, useEffect, useState } from 'react';
+import { Alert, RefreshControl, Share, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { StatusPill, timeline } from '@/components/challenge-card';
 import { Countdown } from '@/components/countdown';
@@ -50,6 +50,7 @@ import {
 import { addDays, dayCount, formatDate, formatDateTime, fromYmd, lastDay } from '@/lib/dates';
 import { goBack } from '@/lib/navigation';
 import { canCallReferee, decisionLabel, timeLeft } from '@/lib/referee';
+import { loadReminderSettings, setChallengeReminders } from '@/lib/reminders';
 import { useLoad } from '@/lib/use-load';
 import { colors, fonts } from '@/theme';
 
@@ -184,6 +185,9 @@ function Details({ page, reload }: { page: Page; reload: () => Promise<void> }) 
       {mine && c.status === 'active' && (
         <TodayCard c={c} mine={mine} latest={latest} results={results} onDeadline={reload} />
       )}
+      {me && isMember && (c.status === 'open' || (mine && c.status === 'active' && mine.result === 'in_progress' && !mine.out)) && (
+        <ReminderSwitch userId={me} challengeId={c.id} />
+      )}
 
       <StatGrid>
         <StatTile label="Stake" value={c.stake} tokens />
@@ -286,6 +290,46 @@ function Details({ page, reload }: { page: Page; reload: () => Promise<void> }) 
         </View>
       )}
     </>
+  );
+}
+
+/** Reminders for this one challenge, on or off (story 9.1). The time is set in Settings. */
+function ReminderSwitch({ userId, challengeId }: { userId: string; challengeId: string }) {
+  const [on, setOn] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    void loadReminderSettings(userId).then((settings) => {
+      if (alive) setOn(!settings.off.includes(challengeId));
+    });
+    return () => {
+      alive = false;
+    };
+  }, [userId, challengeId]);
+
+  if (on === null) return null;
+
+  function change(next: boolean) {
+    setOn(next);
+    void setChallengeReminders(userId, challengeId, next);
+  }
+
+  return (
+    <Card style={styles.reminders}>
+      <View style={styles.remindersText}>
+        <Text style={styles.remindersTitle}>Reminders</Text>
+        <Text style={styles.remindersHint}>
+          {on ? 'On days you still owe a check-in. Set the time in Settings.' : 'Off for this challenge.'}
+        </Text>
+      </View>
+      <Switch
+        value={on}
+        onValueChange={change}
+        accessibilityLabel="Reminders for this challenge"
+        trackColor={{ true: colors.accent, false: colors.border }}
+        thumbColor={colors.text}
+      />
+    </Card>
   );
 }
 
@@ -591,6 +635,10 @@ const styles = StyleSheet.create({
   pillRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
   timeline: { fontFamily: fonts.sans, fontSize: 14, color: colors.textSecondary },
   section: { gap: 12 },
+  reminders: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  remindersText: { flex: 1, gap: 2 },
+  remindersTitle: { fontFamily: fonts.sansSemiBold, fontSize: 15, color: colors.text },
+  remindersHint: { fontFamily: fonts.sans, fontSize: 13, color: colors.textSecondary },
   today: { gap: 12 },
   todayTitle: { fontFamily: fonts.sansSemiBold, fontSize: 18, color: colors.accent },
   todayTitleRed: { color: colors.danger },
