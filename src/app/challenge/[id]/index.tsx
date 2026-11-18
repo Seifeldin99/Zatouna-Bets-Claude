@@ -4,6 +4,7 @@ import { type ReactNode, useCallback, useState } from 'react';
 import { Alert, RefreshControl, Share, StyleSheet, Text, View } from 'react-native';
 
 import { StatusPill, timeline } from '@/components/challenge-card';
+import { Countdown } from '@/components/countdown';
 import {
   Button,
   Card,
@@ -40,6 +41,7 @@ import {
   type DayStatus,
   type MemberProgress,
   type Progress,
+  deadlineOf,
   getProgress,
   latestCheckIn,
   missesLeftLabel,
@@ -179,7 +181,9 @@ function Details({ page, reload }: { page: Page; reload: () => Promise<void> }) 
       </View>
 
       {results && c.status !== 'active' && <ResultsCard c={c} results={results} />}
-      {mine && c.status === 'active' && <TodayCard c={c} mine={mine} latest={latest} results={results} />}
+      {mine && c.status === 'active' && (
+        <TodayCard c={c} mine={mine} latest={latest} results={results} onDeadline={reload} />
+      )}
 
       <StatGrid>
         <StatTile label="Stake" value={c.stake} tokens />
@@ -291,23 +295,37 @@ function TodayCard({
   mine,
   latest,
   results,
+  onDeadline,
 }: {
   c: Challenge;
   mine: MemberProgress;
   latest: CheckIn | null;
   results: Results | null;
+  /** Called when the day or its grace period ends, to ask the server where you stand now. */
+  onDeadline: () => void | Promise<void>;
 }) {
   const last = lastDay(c.start_date, c.length_days);
   const status = mine.days.find((d) => d.day === mine.today)?.status;
   const reason = latest?.verdict?.reason;
   const checkIn = () => router.push(`/challenge/${c.id}/check-in`);
   const callReferee = () => latest && router.push(`/challenge/${c.id}/referee?checkIn=${latest.id}`);
-  // After your last midnight the referee can still be called for a short while
-  // (a server setting; the server has the last word). Judged by the phone's clock.
+  const myResult = results?.members.find((m) => m.mine);
+  // After your last day the referee can still be called for a short while (a
+  // server setting; the server has the last word). The server says until when;
+  // an older server does not, and then the phone's clock stands in.
   const callHoursMs = results ? new Date(results.calls_close_at).getTime() - new Date(results.ends_at).getTime() : 0;
-  const myCallsCloseAt = fromYmd(addDays(last, 1)).getTime() + callHoursMs;
+  const myCallsCloseAt = myResult?.calls_close_at
+    ? new Date(myResult.calls_close_at).getTime()
+    : fromYmd(addDays(last, 1)).getTime() + callHoursMs;
 
-  const quit = results?.members.find((m) => m.mine)?.quit ?? false;
+  // The countdown to your midnight, then through the grace period (stories 5.3, 5.4).
+  const inGrace = mine.in_grace ?? false;
+  const deadline = deadlineOf(mine);
+  const countdown = (
+    <Countdown endsAt={deadline.endsAt} graceEndsAt={deadline.graceEndsAt} onPhaseChange={onDeadline} />
+  );
+
+  const quit = myResult?.quit ?? false;
 
   let body: ReactNode;
   if (quit) {
@@ -371,6 +389,7 @@ function TodayCard({
         <Text style={styles.todayMeta}>
           {`The referee decides within ${latest?.referee ? timeLeft(latest.referee.expires_at) : '48 hours'}; otherwise the day counts. Until then it is not a miss, and you can still retry.`}
         </Text>
+        {countdown}
         <Button label="Try again" variant="secondary" onPress={checkIn} />
       </>
     );
@@ -379,6 +398,7 @@ function TodayCard({
       <>
         <Text style={styles.todayTitle}>Your photo is being checked</Text>
         <Text style={styles.todayText}>Pull down to refresh in a moment.</Text>
+        {countdown}
       </>
     );
   } else if (status === 'rejected') {
@@ -392,8 +412,20 @@ function TodayCard({
         ) : reason ? (
           <Text style={styles.todayText}>{reason}</Text>
         ) : null}
+        {countdown}
         <Button label="Try again" onPress={checkIn} />
         {mayCallReferee && <Button label="Call the referee" variant="secondary" onPress={callReferee} />}
+      </>
+    );
+  } else if (inGrace) {
+    body = (
+      <>
+        <Text style={[styles.todayTitle, styles.todayTitleRed]}>Finish yesterday</Text>
+        <Text style={styles.todayText}>
+          {"You didn't check in before midnight. Take a photo before the time runs out and yesterday still counts."}
+        </Text>
+        {countdown}
+        <Button label="Check in" onPress={checkIn} />
       </>
     );
   } else {
@@ -401,6 +433,7 @@ function TodayCard({
       <>
         <Text style={styles.todayTitle}>Not checked in yet today</Text>
         <Text style={styles.todayText}>Take a photo before midnight to make today count.</Text>
+        {countdown}
         <Button label="Check in" onPress={checkIn} />
       </>
     );
@@ -408,7 +441,7 @@ function TodayCard({
 
   return (
     <View style={styles.section}>
-      <SectionLabel>Today</SectionLabel>
+      <SectionLabel>{inGrace ? 'Yesterday' : 'Today'}</SectionLabel>
       <Card style={styles.today}>
         {body}
         {!mine.out && mine.week && c.times_per_week < 7 && mine.today >= c.start_date && mine.today <= last && (

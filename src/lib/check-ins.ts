@@ -5,7 +5,7 @@ import { FunctionsHttpError } from '@supabase/supabase-js';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 
 import { toError } from '@/lib/challenges';
-import { type Ymd } from '@/lib/dates';
+import { type Ymd, addDays, fromYmd, todayYmd } from '@/lib/dates';
 import { supabase } from '@/lib/supabase';
 
 export const NOTE_MAX = 280;
@@ -33,8 +33,14 @@ export type MemberProgress = {
   user_id: string;
   mine: boolean;
   result: 'in_progress' | 'finished' | 'forfeited';
-  /** Today in this member's own time zone. */
+  /** The day a check-in now would count for: today in this member's own time zone, or yesterday during its grace period. */
   today: Ymd;
+  /** True while a check-in still counts for yesterday (the grace period, story 5.3). Missing on an older server. */
+  in_grace?: boolean;
+  /** When the day `today` ends: the midnight after it, in the member's time zone. */
+  day_ends_at?: string;
+  /** When that day's grace period ends. */
+  grace_ends_at?: string;
   days_done: number;
   misses: number;
   misses_left: number;
@@ -48,7 +54,38 @@ export type Progress = { challenge_id: string; members: MemberProgress[] };
 
 export type TodayStatus = 'out' | 'not_started' | 'ended' | 'done' | 'checking' | 'referee' | 'rejected' | 'open';
 
-export type Today = { challenge_id: string; status: TodayStatus; misses_left: number; week: Week | null };
+export type Today = {
+  challenge_id: string;
+  status: TodayStatus;
+  misses_left: number;
+  /** The day a check-in now would count for (missing on an older server). */
+  today?: Ymd;
+  /** True while a check-in still counts for yesterday (the grace period). */
+  in_grace?: boolean;
+  /** When that day ends, and when its grace period ends. */
+  day_ends_at?: string;
+  grace_ends_at?: string;
+  week: Week | null;
+};
+
+/** When your day ends and when its grace period ends, in ms since the epoch. */
+export type Deadline = { endsAt: number; graceEndsAt: number | null };
+
+/**
+ * The deadline that applies to a day. The server says when the day and its
+ * grace period end; an older server does not, and then the phone's own
+ * midnight stands in, with no grace period shown.
+ */
+export function deadlineOf(t: { today?: Ymd; day_ends_at?: string; grace_ends_at?: string }): Deadline {
+  const endsAt = t.day_ends_at ? new Date(t.day_ends_at).getTime() : fromYmd(addDays(t.today ?? todayYmd(), 1)).getTime();
+  const graceEndsAt = t.grace_ends_at ? new Date(t.grace_ends_at).getTime() : null;
+  return { endsAt, graceEndsAt: graceEndsAt !== null && graceEndsAt > endsAt ? graceEndsAt : null };
+}
+
+/** True while the day can still be completed, so a countdown makes sense. */
+export function dayStillOpen(status: TodayStatus | DayStatus): boolean {
+  return status === 'open' || status === 'rejected' || status === 'checking' || status === 'referee';
+}
 
 export type CheckInState = 'pending' | 'accepted' | 'rejected';
 export type AiLabel = 'likely_ok' | 'unsure' | 'likely_not_ok' | 'failed';
@@ -75,8 +112,8 @@ export type CheckIn = {
 
 export type Verdict = { state: CheckInState; label: AiLabel | null; reason: string };
 
-/** The verdict plus the check-in it belongs to, so a rejection can go to the referee. */
-export type Outcome = Verdict & { check_in_id: string };
+/** The verdict plus the check-in it belongs to, so a rejection can go to the referee, and the day it counted for. */
+export type Outcome = Verdict & { check_in_id: string; day: Ymd };
 
 export type Photo = { uri: string; width: number; height: number };
 
@@ -134,10 +171,10 @@ async function shrink(photo: Photo): Promise<string> {
   }
 }
 
-async function beginCheckIn(challengeId: string, note: string): Promise<{ id: string; photo_path: string }> {
+async function beginCheckIn(challengeId: string, note: string): Promise<{ id: string; photo_path: string; day: Ymd }> {
   const { data, error } = await supabase.rpc('begin_check_in', { p_challenge_id: challengeId, p_note: note });
   if (error) throw toError(error);
-  return data as { id: string; photo_path: string };
+  return data as { id: string; photo_path: string; day: Ymd };
 }
 
 async function uploadPhoto(path: string, uri: string): Promise<void> {
@@ -190,14 +227,16 @@ export async function submitCheckIn(
   }
   onStage('checking');
   const verdict = await judge(slot.id);
-  return { ...verdict, check_in_id: slot.id };
+  return { ...verdict, check_in_id: slot.id, day: slot.day };
 }
 
 /** One line for a challenge card: where you stand today. Null when there is nothing to say. */
-export function todayLine(status: TodayStatus): { text: string; tone: 'accent' | 'muted' | 'danger' } | null {
+export function todayLine(status: TodayStatus, inGrace = false): { text: string; tone: 'accent' | 'muted' | 'danger' } | null {
   switch (status) {
     case 'open':
-      return { text: 'Not checked in yet today', tone: 'accent' };
+      return inGrace
+        ? { text: 'Finish yesterday', tone: 'danger' }
+        : { text: 'Not checked in yet today', tone: 'accent' };
     case 'done':
       return { text: 'Done for today', tone: 'muted' };
     case 'checking':
