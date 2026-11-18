@@ -38,16 +38,16 @@ Zatouna lets you "bet on yourself": join a private challenge with friends, stake
 
 ### 2. Private challenges
 - **2.1** As a creator, I want to pick one of the seven challenge templates (Read a Book, Workout, Sunshine, Journaling, Eating Fruits, Learn French, Pet Cat), which sets the title and the rule ("what counts"), then set how often (daily, or N times a week), a start date (today or later), a length (1 to 30 days), a stake, and how many misses are allowed. *Done when:* it's saved as **not started** (or **active** at once if it starts today) and only I can see it. Custom titles and rules are not in the first draft: every challenge comes from a template.
-- **2.2** As a creator, I want to edit or delete my challenge during its first day. *Done when:* from the second day, nothing about it can change. Deleting gives everyone their stake back.
+- **2.2** As a creator, I want to edit or delete my challenge during its first day. *Done when:* from the second day, nothing about it can change. Deleting gives everyone their stake back, so it is possible only while nobody has checked in yet.
 
 ### 3. Friends for each challenge
 - **3.1** As a creator, I want to invite friends with a link or a short code. *Done when:* the link opens the challenge in the app, and a challenge holds at most **10 members**.
 - **3.2** As a member, I want to see who's in and who's on track. *Done when:* friends see my check-in only once it's **accepted**, or once my day is over and **missed**. My rejected attempts, retries and referee cases stay private while my day is still open. Nobody outside the challenge can see anything about it.
-- **3.3** Invitees can join until the **end of the first day** (11:59pm on the start date, in the creator's time zone). A challenge starts at midnight on its start date, by itself.
+- **3.3** Invitees can join until the **end of the first day** (11:59pm on the start date, in the creator's time zone), and no later than the end of the start date in their **own** time zone, so nobody joins a day they have already missed. A challenge starts at midnight on its start date, by itself.
 
 ### 4. Staking and forfeiting
 - **4.1** As an invitee, I want to join by staking tokens. *Done when:* the stake moves from my balance to the pool at once, and I can't join without enough tokens.
-- **4.2** As a member, I want to leave during the first day and get my stake back.
+- **4.2** As a member, I want to leave during the first day and get my stake back. *Done when:* leaving is possible until the end of the first day, as long as I have not checked in yet; after a check-in my stake stays in.
 - **4.3** Quitting from the second day on, or missing more than the allowed check-ins, forfeits my stake. *Done when:* the app warns before I quit and shows "misses left."
 
 ### 5. Photo-plus-note check-ins

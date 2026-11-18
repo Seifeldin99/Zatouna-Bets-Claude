@@ -15,7 +15,18 @@ import {
   StatTile,
 } from '@/components/ui';
 import { MAX_MEMBERS, howOften, joinChallenge, myBalance, previewInvite } from '@/lib/challenges';
-import { dayCount, deviceTimeZone, formatDate, lastDay, relativeDay } from '@/lib/dates';
+import {
+  type Ymd,
+  addDays,
+  dayCount,
+  daysFromToday,
+  deviceTimeZone,
+  formatDate,
+  formatDateTime,
+  fromYmd,
+  lastDay,
+  relativeDay,
+} from '@/lib/dates';
 import { goBack } from '@/lib/navigation';
 import { useLoad } from '@/lib/use-load';
 import { colors, fonts } from '@/theme';
@@ -33,6 +44,9 @@ export default function JoinScreen() {
   const p = data?.preview;
   const balance = data?.balance ?? 0;
   const short = p ? p.stake > balance : false;
+  // Your days run on your own time zone: once your own first day is over, the
+  // server refuses the join, so say so here first.
+  const firstDayOver = p ? daysFromToday(p.start_date) < 0 : false;
 
   async function join() {
     if (!p) return;
@@ -79,28 +93,43 @@ export default function JoinScreen() {
           <View>
             <InfoRow label="Starts" value={formatDate(p.start_date)} />
             <InfoRow label="Ends" value={formatDate(lastDay(p.start_date, p.length_days))} />
-            <InfoRow label="Joining closes" value={`End of ${formatDate(p.start_date)}`} />
+            <InfoRow label="Joining closes" value={joinClosesLabel(p.start_date, p.join_closes_at)} />
           </View>
 
           {p.already_member ? (
             <Button label="Open the challenge" onPress={() => router.replace(`/challenge/${p.challenge_id}`)} />
-          ) : p.can_join ? (
+          ) : p.can_join && !firstDayOver ? (
             <View style={styles.joinBox}>
               {joinError && <ErrorText>{joinError}</ErrorText>}
               <Button label={`Join for ${p.stake} tokens`} onPress={join} loading={joining} disabled={short} />
               <Hint>
                 {short
                   ? `You have ${balance} tokens and need ${p.stake} to join.`
-                  : `You have ${balance} tokens. Your stake moves to the pool now and comes back if you leave before the end of the first day.`}
+                  : `You have ${balance} tokens. Your stake moves to the pool now and comes back if you leave during the first day, before you check in.`}
               </Hint>
             </View>
           ) : (
-            <ErrorText>{capitalize(p.blocker ?? 'You cannot join this challenge.')}</ErrorText>
+            <ErrorText>
+              {capitalize(
+                p.can_join && firstDayOver
+                  ? 'your first day of this challenge is already over in your time zone, so you can no longer join'
+                  : (p.blocker ?? 'You cannot join this challenge.'),
+              )}
+            </ErrorText>
           )}
         </>
       )}
     </Screen>
   );
+}
+
+/**
+ * When joining closes for you: the end of the start date where you are, or
+ * the creator's midnight if that comes first (when you are west of them).
+ */
+function joinClosesLabel(startDate: Ymd, creatorCloses: string): string {
+  const yourMidnight = fromYmd(addDays(startDate, 1));
+  return new Date(creatorCloses) < yourMidnight ? formatDateTime(creatorCloses) : `End of ${formatDate(startDate)}`;
 }
 
 function capitalize(text: string) {
